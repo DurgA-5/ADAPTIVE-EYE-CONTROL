@@ -101,8 +101,8 @@ def announce_double_click() -> None:
 
 
 def announce_scroll_up() -> None:
-    VoiceAnnouncer.get_instance().speak("Scroll Up", min_interval_s=1.2)
+    VoiceAnnouncer.get_instance().speak("Scroll Up", min_interval_s=3.0)
 
 
 def announce_scroll_down() -> None:
-    VoiceAnnouncer.get_instance().speak("Scroll Down", min_interval_s=1.2)
+    VoiceAnnouncer.get_instance().speak("Scroll Down", min_interval_s=3.0)

@@ -718,6 +718,7 @@ def run_os_cursor_control_live() -> None:
                     if mouse_controller._is_win32_available and mouse_controller._user32:
                         mouse_controller._user32.SetCursorPos(screen_w // 2, screen_h // 2)
                     stabilizer.reset()
+                    eye_scroller.reset()
                     is_center_calibrated = True
                     try:
                         import winsound
@@ -732,9 +733,13 @@ def run_os_cursor_control_live() -> None:
                 mode_lbl = "PURE IRIS (100% Eye Control)" if new_app == "pure_iris" else "COMPOUND (Iris + Head Assistance)"
                 print(f"\n[AdaptiveEye Mode Toggle] Gaze tracking mode: {mode_lbl}\n")
             elif key in (ord("s"), ord("S")):
-                eye_scroller.config.enable_edge_scrolling = not eye_scroller.config.enable_edge_scrolling
-                state_str = "ENABLED" if eye_scroller.config.enable_edge_scrolling else "DISABLED"
-                print(f"[AdaptiveEye] Gaze border scrolling {state_str}")
+                curr_active = eye_scroller.config.enable_head_tilt_scrolling or eye_scroller.config.enable_edge_scrolling
+                new_state = not curr_active
+                eye_scroller.config.enable_head_tilt_scrolling = new_state
+                eye_scroller.config.enable_edge_scrolling = False
+                eye_scroller.reset()
+                state_str = "ENABLED (Tilt Head Up/Down)" if new_state else "DISABLED"
+                print(f"[AdaptiveEye] Scrolling {state_str}")
             elif key in (ord("d"), ord("D")):
                 dwell_clicker.config.enable_dwell_clicking = not dwell_clicker.config.enable_dwell_clicking
                 state_str = "ENABLED" if dwell_clicker.config.enable_dwell_clicking else "DISABLED"

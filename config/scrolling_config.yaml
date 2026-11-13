@@ -1,19 +1,19 @@
 # AdaptiveEye - Eye Scrolling & Dwell Control Configuration
 scrolling:
-  # Head-Tilt Continuous Scrolling (Active: Look up head = scroll UP, Look down head = scroll DOWN)
+  # Head-Tilt Continuous Scrolling (Active: Deliberate head tilt UP = scroll UP, head tilt DOWN = scroll DOWN)
   enable_head_tilt_scrolling: true
-  head_tilt_pitch_threshold_deg: 5.5   # 5.5 deg pitch deviation from neutral to start scrolling (effortless head tilt)
-  head_tilt_activation_delay_ms: 120.0 # Responsive gesture activation (120ms)
+  head_tilt_pitch_threshold_deg: 11.0  # 11 deg pitch angle (deliberate conscious tilt, immune to normal eye glances)
+  head_tilt_activation_delay_ms: 350.0 # 350ms deliberate hold before scrolling engages (prevents accidental triggers)
 
-  # Edge / Border Gaze Scrolling (Looking towards top/bottom margin)
-  enable_edge_scrolling: true
-  top_zone_ratio: 0.14             # Top 14% of screen height triggers scroll up
-  bottom_zone_ratio: 0.14          # Bottom 14% of screen height triggers scroll down
-  activation_delay_ms: 220.0       # Gaze dwell time before border scrolling commences
-  scroll_interval_ms: 65.0         # Rate limiting between scroll ticks
-  base_wheel_delta: 120            # Standard Win32 WHEEL_DELTA (positive = up, negative = down)
-  dynamic_speed_scaling: true      # Scale scroll speed based on tilt/proximity (1x to 3x)
-  max_speed_multiplier: 3.0        # Maximum multiplier at extreme edge/tilt
+  # Edge / Border Gaze Scrolling (DISABLED by default to prevent accidental scrolling when viewing tabs or taskbar)
+  enable_edge_scrolling: false
+  top_zone_ratio: 0.10             # Top margin ratio if enabled
+  bottom_zone_ratio: 0.10          # Bottom margin ratio if enabled
+  activation_delay_ms: 600.0       # Gaze dwell time before border scrolling commences
+  scroll_interval_ms: 80.0         # Rate limiting between scroll ticks (smooth controlled scrolling)
+  base_wheel_delta: 90             # Controlled wheel delta per tick
+  dynamic_speed_scaling: true      # Scale scroll speed based on tilt magnitude (1x to 2.5x)
+  max_speed_multiplier: 2.5        # Maximum speed multiplier
 
   # Dwell Fixation Clicking (DISABLED as requested)
   enable_dwell_clicking: false
