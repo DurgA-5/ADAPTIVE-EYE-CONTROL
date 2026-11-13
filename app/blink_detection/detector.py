@@ -140,9 +140,11 @@ class ClickDispatcher:
         threading.Thread(target=_beep, daemon=True).start()
 
     def dispatch_left_click(self, x: Optional[int] = None, y: Optional[int] = None) -> bool:
-        """Trigger physical Left Click."""
+        """Trigger physical Left Click with pinpoint target coordinate locking."""
         self._play_click_sound(frequency=1400, duration_ms=45)
         if self._is_win32 and self._user32:
+            if x is not None and y is not None:
+                self._user32.SetCursorPos(int(x), int(y))
             self._user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
             self._user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
             return True
@@ -155,9 +157,11 @@ class ClickDispatcher:
             return False
 
     def dispatch_right_click(self, x: Optional[int] = None, y: Optional[int] = None) -> bool:
-        """Trigger physical Right Click."""
+        """Trigger physical Right Click with pinpoint target coordinate locking."""
         self._play_click_sound(frequency=900, duration_ms=65)
         if self._is_win32 and self._user32:
+            if x is not None and y is not None:
+                self._user32.SetCursorPos(int(x), int(y))
             self._user32.mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
             self._user32.mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
             return True
@@ -170,9 +174,11 @@ class ClickDispatcher:
             return False
 
     def dispatch_double_click(self, x: Optional[int] = None, y: Optional[int] = None) -> bool:
-        """Trigger physical Double Click."""
+        """Trigger physical Double Click with pinpoint target coordinate locking."""
         self._play_click_sound(frequency=1800, duration_ms=40)
         if self._is_win32 and self._user32:
+            if x is not None and y is not None:
+                self._user32.SetCursorPos(int(x), int(y))
             self._user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
             self._user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
             time.sleep(0.04)
@@ -208,6 +214,7 @@ class BlinkClickDetector:
         self._pending_single_click: bool = False
         self._pending_single_click_time: float = 0.0
         self._pending_single_click_pos: Tuple[int, int] = (0, 0)
+        self._blink_target_pos: Tuple[int, int] = (0, 0)
         self._last_dispatched_click_time: float = -999.0
         self._last_click_type: ClickType = ClickType.NONE
 
@@ -302,9 +309,10 @@ class BlinkClickDetector:
         # -------------------------------------------------------------
         if both_closed:
             if not self._bilateral_closed:
-                # Transition: Eyes just closed
+                # Transition: Eyes just closed - lock target coordinates instantly!
                 self._bilateral_closed = True
                 self._blink_start_time = now
+                self._blink_target_pos = (cursor_x, cursor_y)
                 self._left_wink_start = None
                 self._right_wink_start = None
 
@@ -322,6 +330,7 @@ class BlinkClickDetector:
             duration_ms = (now - self._blink_start_time) * 1000.0 if self._blink_start_time is not None else 0.0
             self._last_blink_duration_ms = duration_ms
             self._blink_start_time = None
+            target_pos = self._blink_target_pos if self._blink_target_pos != (0, 0) else (cursor_x, cursor_y)
 
             if not is_debouncing:
                 # Classify duration:
@@ -329,12 +338,12 @@ class BlinkClickDetector:
                     # Prolonged deliberate closure -> Right Click
                     triggered_event = ClickEvent(
                         click_type=ClickType.RIGHT_CLICK,
-                        x=cursor_x,
-                        y=cursor_y,
+                        x=target_pos[0],
+                        y=target_pos[1],
                         duration_ms=round(duration_ms, 1),
                         timestamp=now,
                     )
-                    self.dispatcher.dispatch_right_click(cursor_x, cursor_y)
+                    self.dispatcher.dispatch_right_click(target_pos[0], target_pos[1])
                     self._last_dispatched_click_time = now
                     self._last_click_type = ClickType.RIGHT_CLICK
                     self._pending_single_click = False
@@ -348,12 +357,12 @@ class BlinkClickDetector:
                             # Second blink arrived within double click window -> DOUBLE CLICK!
                             triggered_event = ClickEvent(
                                 click_type=ClickType.DOUBLE_CLICK,
-                                x=cursor_x,
-                                y=cursor_y,
+                                x=self._pending_single_click_pos[0],
+                                y=self._pending_single_click_pos[1],
                                 duration_ms=round(duration_ms, 1),
                                 timestamp=now,
                             )
-                            self.dispatcher.dispatch_double_click(cursor_x, cursor_y)
+                            self.dispatcher.dispatch_double_click(self._pending_single_click_pos[0], self._pending_single_click_pos[1])
                             self._last_dispatched_click_time = now
                             self._last_click_type = ClickType.DOUBLE_CLICK
                             self._pending_single_click = False
@@ -362,12 +371,12 @@ class BlinkClickDetector:
                             # Previous pending expired, restart pending with current
                             self._pending_single_click = True
                             self._pending_single_click_time = now
-                            self._pending_single_click_pos = (cursor_x, cursor_y)
+                            self._pending_single_click_pos = target_pos
                     else:
                         # First intentional blink: mark as pending double-click opportunity
                         self._pending_single_click = True
                         self._pending_single_click_time = now
-                        self._pending_single_click_pos = (cursor_x, cursor_y)
+                        self._pending_single_click_pos = target_pos
                 else:
                     status_msg = f"Involuntary Blink Ignored ({int(duration_ms)}ms)"
 
