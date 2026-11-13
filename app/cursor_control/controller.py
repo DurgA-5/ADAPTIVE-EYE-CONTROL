@@ -170,13 +170,10 @@ class OSCursorController:
         # Small distances (< 45px): Fine precision pointing (slow, smooth, pixel-accurate)
         # Large distances (>= 45px): Rapid ballistic jump across the monitor
         if dist < 45.0:
-            # Fine adjustment interpolation
             interp = 0.22
         elif dist < 200.0:
-            # Medium approach
             interp = 0.40
         else:
-            # Ballistic saccade sweep
             interp = 0.65
 
         # Move current coordinate toward target
@@ -206,7 +203,7 @@ class OSCursorController:
         phys_x, phys_y = self.get_physical_cursor_pos()
 
         # 1. Emergency Corner Failsafe Check:
-        # If the user grabs their physical mouse and slams it into the top-left corner (0,0), disengage eye control
+        # If the user physically grabs the mouse and slams it into the top-left corner (0,0), disengage eye control
         if self.config.emergency_corner_failsafe and phys_x <= 5 and phys_y <= 5:
             self._corner_dwell_frames += 1
             if self._corner_dwell_frames >= self.config.corner_failsafe_frames:
@@ -505,7 +502,7 @@ def run_os_cursor_control_live() -> None:
                         med_yaw = float(np.median([s[2] for s in initial_calib_samples]))
                         med_pitch = float(np.median([s[3] for s in initial_calib_samples]))
                     else:
-                        med_ix, med_iy = 0.50, 0.50
+                        med_ix, med_iy = 0.48, 0.44
                         med_yaw, med_pitch = 0.0, 0.0
 
                     if raw_gaze.head_angles and eye_feats.has_eyes:
@@ -516,8 +513,13 @@ def run_os_cursor_control_live() -> None:
                     if mouse_controller._is_win32_available and mouse_controller._user32:
                         mouse_controller._user32.SetCursorPos(screen_w // 2, screen_h // 2)
                     is_center_calibrated = True
+                    try:
+                        import winsound
+                        winsound.Beep(1500, 80)
+                    except Exception:
+                        pass
                     print(f"\n[AdaptiveEye Auto-Center] Done! Neutral resting gaze locked to ({med_ix:.3f}, {med_iy:.3f})")
-                    print("Cursor is now actively following your eye movements! Press [C] anytime to re-center.\n")
+                    print("Cursor is now actively following your eye movements! Press [C] or [SPACE] anytime to re-center.\n")
 
             # 3. Adaptive Posture Drift Compensation & Stabilization
             if raw_gaze.is_valid and is_center_calibrated:
@@ -664,15 +666,15 @@ def run_os_cursor_control_live() -> None:
             auth_col = (0, 255, 120) if is_authorized else (0, 0, 255)
             cv2.putText(annotated, status_txt, (15, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.48, status_color, 2, cv2.LINE_AA)
             approach_tag = "PURE IRIS" if gaze_estimator.config.estimation_approach == "pure_iris" else "COMPOUND"
-            cv2.putText(annotated, f"Mode: {approach_tag} | Gain: {gaze_estimator.range_tracker.gain:.2f}x | [C] Center | [M] Mode | [F8] Toggle | [Q] Exit", (15, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.40, auth_col, 1, cv2.LINE_AA)
+            cv2.putText(annotated, f"Mode: {approach_tag} | Gain: {gaze_estimator.range_tracker.gain:.2f}x | [SPACE/C] Center | [M] Mode | [F8] Toggle | [Q] Exit", (15, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.40, auth_col, 1, cv2.LINE_AA)
 
             # Startup Center Calibration Visual Target
             if not is_center_calibrated:
                 secs_left = max(1, (calib_countdown_frames - frame_count + 29) // 30)
-                box_w, box_h = 420, 50
+                box_w, box_h = 440, 52
                 cv2.rectangle(annotated, (w // 2 - box_w // 2, h // 2 - box_h // 2), (w // 2 + box_w // 2, h // 2 + box_h // 2), (15, 15, 20), -1)
                 cv2.rectangle(annotated, (w // 2 - box_w // 2, h // 2 - box_h // 2), (w // 2 + box_w // 2, h // 2 + box_h // 2), (0, 240, 255), 2)
-                cv2.putText(annotated, f"LOOK AT SCREEN CENTER ({secs_left}s)", (w // 2 - 180, h // 2 + 8), cv2.FONT_HERSHEY_SIMPLEX, 0.60, (0, 240, 255), 2, cv2.LINE_AA)
+                cv2.putText(annotated, f"LOOK AT CENTER & PRESS [SPACE] ({secs_left}s)", (w // 2 - 205, h // 2 + 8), cv2.FONT_HERSHEY_SIMPLEX, 0.54, (0, 240, 255), 2, cv2.LINE_AA)
                 cv2.drawMarker(annotated, (w // 2, h // 2), (0, 255, 120), cv2.MARKER_CROSS, 30, 2, cv2.LINE_AA)
 
             # Click Event Visual Feedback Overlay
@@ -702,7 +704,7 @@ def run_os_cursor_control_live() -> None:
             elif key in (ord("-"), ord("_")):
                 gaze_estimator.range_tracker.gain = max(0.50, round(gaze_estimator.range_tracker.gain - 0.15, 2))
                 print(f"Decreased gaze sensitivity gain to: {gaze_estimator.range_tracker.gain:.2f}x")
-            elif key in (ord("c"), ord("C"), ord("a"), ord("A")):
+            elif key in (ord("c"), ord("C"), ord("a"), ord("A"), 32):  # 'C' or Spacebar
                 if eye_feats.has_eyes and eye_feats.right_eye and eye_feats.left_eye:
                     avg_ix = (eye_feats.right_eye.iris_relative_x + eye_feats.left_eye.iris_relative_x) / 2.0
                     avg_iy = (eye_feats.right_eye.iris_relative_y + eye_feats.left_eye.iris_relative_y) / 2.0
@@ -717,7 +719,12 @@ def run_os_cursor_control_live() -> None:
                         mouse_controller._user32.SetCursorPos(screen_w // 2, screen_h // 2)
                     stabilizer.reset()
                     is_center_calibrated = True
-                    print(f"\n[AdaptiveEye Center Calibrated] Neutral eye center locked to ({avg_ix:.3f}, {avg_iy:.3f}) | Cursor centered.\n")
+                    try:
+                        import winsound
+                        winsound.Beep(1600, 90)
+                    except Exception:
+                        pass
+                    print(f"\n[AdaptiveEye Center Calibrated] Neutral center locked to ({avg_ix:.3f}, {avg_iy:.3f}) | Cursor centered.\n")
             elif key in (ord("m"), ord("M")):
                 curr_app = gaze_estimator.config.estimation_approach
                 new_app = "compound" if curr_app == "pure_iris" else "pure_iris"

@@ -67,15 +67,17 @@ class AdaptiveIrisRangeTracker:
     def __init__(
         self,
         bounds: Optional[IrisRangeBounds] = None,
-        gain_x: float = 1.65,
-        gain_y: float = 1.95,
+        gain_x: float = 1.35,
+        gain_y: float = 1.45,
+        neutral_x: float = 0.50,
+        neutral_y: float = 0.50,
     ) -> None:
         self.bounds = bounds or IrisRangeBounds()
         self.gain_x: float = gain_x
         self.gain_y: float = gain_y
         self._gain: float = gain_x
-        self.neutral_iris_x: float = 0.50
-        self.neutral_iris_y: float = 0.50
+        self.neutral_iris_x: float = neutral_x
+        self.neutral_iris_y: float = neutral_y
 
     @property
     def gain(self) -> float:
@@ -85,7 +87,7 @@ class AdaptiveIrisRangeTracker:
     def gain(self, val: float) -> None:
         self._gain = val
         self.gain_x = val
-        self.gain_y = round(val * 1.18, 2)
+        self.gain_y = round(val * 1.08, 2)
 
     def set_neutral(self, iris_x: float, iris_y: float) -> None:
         """Calibrate user's resting forward gaze center."""
@@ -103,23 +105,20 @@ class AdaptiveIrisRangeTracker:
         disp_x = iris_x - self.neutral_iris_x
         disp_y = iris_y - self.neutral_iris_y
 
-        # Highly sensitive physiological ocular limits for effortless full-screen reach:
-        # Horizontal: +/-0.035 for effortless lateral sweep across 100% of display
-        # Upward: 0.026 (effortless top border / title bar reach)
-        # Downward: 0.016 (effortless taskbar reach with natural eyelid depression)
-        half_span_x = 0.035
-        half_span_y_up = 0.026
-        half_span_y_down = 0.016
+        # Physiologically accurate ocular limits for smooth, natural full-screen sweep:
+        # Lateral pupil displacement across laptop monitor is ~0.085 of canthus width
+        # Vertical displacement is ~0.055 up and ~0.045 down
+        half_span_x = 0.085
+        half_span_y_up = 0.055
+        half_span_y_down = 0.045
 
         # Horizontal mapping
         nx = 0.50 + (disp_x / half_span_x) * 0.50 * self.gain_x
 
-        # Vertical mapping with asymmetric downward boost for taskbar reach
+        # Vertical mapping with natural downward gain for taskbar reach
         if disp_y >= 0.0:
-            # Looking downward towards taskbar / bottom of screen
             ny = 0.50 + (disp_y / half_span_y_down) * 0.50 * self.gain_y
         else:
-            # Looking upward towards title bar / top of screen
             ny = 0.50 + (disp_y / half_span_y_up) * 0.50 * self.gain_y
 
         return float(np.clip(nx, 0.0, 1.0)), float(np.clip(ny, 0.0, 1.0))
@@ -150,7 +149,10 @@ class GazeEstimator:
     def __init__(self, config: Optional[GazeConfig] = None) -> None:
         self.config = config or GazeConfig()
         self.head_pose_estimator = HeadPoseEstimator()
-        self.range_tracker = AdaptiveIrisRangeTracker()
+        self.range_tracker = AdaptiveIrisRangeTracker(
+            neutral_x=self.config.center_bias_x,
+            neutral_y=self.config.center_bias_y,
+        )
         self._neutral_pitch: Optional[float] = None
         self._neutral_yaw: Optional[float] = None
         self._smooth_iris_x: Optional[float] = None
@@ -239,7 +241,7 @@ class GazeEstimator:
             self._smooth_iris_x = avg_iris_x
             self._smooth_iris_y = avg_iris_y
         else:
-            iris_alpha = 0.65  # Snappy, low-latency ocular tracking
+            iris_alpha = 0.82  # Snappy, low-latency ocular tracking
             self._smooth_iris_x = (1.0 - iris_alpha) * self._smooth_iris_x + iris_alpha * avg_iris_x
             self._smooth_iris_y = (1.0 - iris_alpha) * self._smooth_iris_y + iris_alpha * avg_iris_y
 

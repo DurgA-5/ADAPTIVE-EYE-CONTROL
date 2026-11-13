@@ -1,10 +1,10 @@
 # AdaptiveEye - Cursor Stabilization & Micro-Saccade Jitter Suppression Configuration
 stabilization:
   algorithm: "adaptive_ema"             # "adaptive_ema" (recommended for ultra-low latency), "kalman", or "hybrid"
-  deadzone_radius_px: 5.0              # Displacements below 5px are frozen as stationary fixations
-  min_alpha: 0.12                      # Fixation smoothing factor (rock-solid cursor, zero tremor)
-  max_alpha: 0.82                      # Responsive saccadic tracking (immediate cursor response to eye movement)
-  saccade_velocity_threshold_px_s: 320.0  # Velocity threshold to trigger fast tracking
+  deadzone_radius_px: 4.0              # Displacements below 4px are held stationary during fixations
+  min_alpha: 0.16                      # Fixation smoothing factor (rock-solid cursor, zero tremor)
+  max_alpha: 0.88                      # Responsive saccadic tracking (immediate cursor response to eye movement)
+  saccade_velocity_threshold_px_s: 280.0  # Velocity threshold to trigger fast tracking
   kalman_process_noise: 0.08           # Kalman model uncertainty Q
   kalman_measurement_noise_base: 1.2   # Base measurement covariance R
   confidence_noise_multiplier: 12.0    # Inflation factor for R when confidence drops

@@ -1,14 +1,14 @@
 # AdaptiveEye - Blink Detection & Intentional Eye Clicking Configuration
 blink_detection:
-  ear_threshold: 0.22                  # 0.22 captures natural eyelid closure without straining
-  min_blink_duration_ms: 150.0         # 150ms (~4-5 video frames) = reliable intentional deliberate blink
+  ear_threshold: 0.18                  # Natural full-closure threshold (immune to looking downward)
+  min_blink_duration_ms: 150.0         # 150ms (~4-5 video frames) = intentional conscious single blink
   max_click_blink_duration_ms: 550.0   # 150ms - 550ms = intentional Single Click (Left Click)
   double_click_window_ms: 380.0        # Double click window (380ms ensures fast, crisp single click dispatch)
   long_blink_right_click_ms: 9999.0    # Long blink right click disabled (pure single & double click mode)
-  enable_wink_clicking: false          # Unilateral winking disabled as requested
-  enable_wink_right_click: false       # Unilateral winking disabled as requested
+  enable_wink_clicking: false          # Unilateral winking disabled
+  enable_wink_right_click: false       # Unilateral winking disabled
   wink_min_duration_ms: 280.0          # Minimum wink hold time
-  click_debounce_ms: 260.0             # Refractory period after click to prevent repeats
-  enable_sound_feedback: true          # Play chime on successful click
+  click_debounce_ms: 240.0             # Refractory period after click to prevent repeats
+  enable_sound_feedback: true          # Play sound chime on successful click
   hold_position_during_blink: true     # Freeze cursor coordinate during click blink
   mirror_mode: true                    # Mirrored webcam mode
