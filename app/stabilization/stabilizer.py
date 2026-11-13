@@ -173,17 +173,25 @@ class AdaptiveCursorStabilizer:
 
         # Fixation Dwell Anchor Engine:
         # When user looks steadily at one location, FREEZE the cursor completely stationary!
-        fixation_dist = float(np.hypot(clamped_x - self._fixation_anchor_x, clamped_y - self._fixation_anchor_y))
-        if fixation_dist < 18.0 or is_deadzone:
-            self._fixation_counter += 1
-            if self._fixation_counter >= 3:
-                clamped_x = self._fixation_anchor_x
-                clamped_y = self._fixation_anchor_y
-                is_deadzone = True
-        else:
+        # Instant Saccadic Breakout: check distance between incoming raw gaze and fixation anchor
+        raw_saccade_dist = float(np.hypot(raw_x - self._fixation_anchor_x, raw_y - self._fixation_anchor_y))
+        if raw_saccade_dist >= 22.0 or velocity >= 320.0:
+            # Saccadic jump detected! Instantly break out of fixation dwell lock with zero stickiness
+            self._fixation_counter = 0
             self._fixation_anchor_x = clamped_x
             self._fixation_anchor_y = clamped_y
-            self._fixation_counter = 0
+        else:
+            fixation_dist = float(np.hypot(clamped_x - self._fixation_anchor_x, clamped_y - self._fixation_anchor_y))
+            if fixation_dist < 18.0 or is_deadzone:
+                self._fixation_counter += 1
+                if self._fixation_counter >= 3:
+                    clamped_x = self._fixation_anchor_x
+                    clamped_y = self._fixation_anchor_y
+                    is_deadzone = True
+            else:
+                self._fixation_anchor_x = clamped_x
+                self._fixation_anchor_y = clamped_y
+                self._fixation_counter = 0
 
         self._last_stable_x = clamped_x
         self._last_stable_y = clamped_y

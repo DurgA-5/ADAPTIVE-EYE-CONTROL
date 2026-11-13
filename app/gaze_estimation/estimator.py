@@ -110,13 +110,21 @@ class AdaptiveIrisRangeTracker:
         half_span_y_up = 0.055
         half_span_y_down = 0.045
 
-        # Sub-pixel Pointer Precision (Gentle S-curve acceleration):
-        # Dampens micro-tremors near center while preserving snappy, full edge-reach
+        # Sub-pixel Pointer Precision with Smooth Corner Reach Extension:
+        # Dampens micro-tremors near center while providing smooth progressive edge reach
         def _precision_curve(disp: float, span: float, gain: float) -> float:
             normalized = disp / span
             sign = 1.0 if normalized >= 0.0 else -1.0
-            curved = sign * (abs(normalized) ** 1.15)
-            return 0.50 + curved * 0.50 * gain
+            mag = abs(normalized)
+
+            # Precision Center Zone: dampens tremor for rock-solid button targeting
+            if mag < 0.40:
+                curved = mag ** 1.15
+            # Edge Acceleration Zone: smooth progressive boost for effortless corner reach
+            else:
+                curved = (0.40 ** 1.15) + (mag - 0.40) * 1.25
+
+            return 0.50 + sign * curved * 0.50 * gain
 
         nx = _precision_curve(disp_x, half_span_x, self.gain_x)
         if disp_y >= 0.0:

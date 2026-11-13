@@ -4,5 +4,5 @@ eye_tracking:
   max_num_faces: 4                   # Multi-face tolerance: matches authorized face among up to 4 faces
   min_detection_confidence: 0.55     # Robust face mesh detection confidence
   min_tracking_confidence: 0.55      # Robust temporal landmark tracking confidence
-  ear_blink_threshold: 0.17          # Strict closure threshold (prevents false blinks when looking down)
+  ear_blink_threshold: 0.19          # Comfortable closure threshold (natural effortless blinking)
   smooth_landmarks: true             # Temporal landmark smoothing

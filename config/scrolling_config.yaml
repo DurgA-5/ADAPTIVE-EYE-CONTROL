@@ -2,16 +2,16 @@
 scrolling:
   # Head-Tilt Continuous Scrolling (Active: Deliberate head tilt UP = scroll UP, head tilt DOWN = scroll DOWN)
   enable_head_tilt_scrolling: true
-  head_tilt_pitch_threshold_deg: 11.0  # 11 deg pitch angle (deliberate conscious tilt, immune to normal eye glances)
-  head_tilt_activation_delay_ms: 350.0 # 350ms deliberate hold before scrolling engages (prevents accidental triggers)
+  head_tilt_pitch_threshold_deg: 8.5   # 8.5 deg pitch angle (deliberate conscious tilt, comfortable without neck strain)
+  head_tilt_activation_delay_ms: 200.0 # 200ms deliberate hold before scrolling engages (responsive yet accident-free)
 
   # Edge / Border Gaze Scrolling (DISABLED by default to prevent accidental scrolling when viewing tabs or taskbar)
   enable_edge_scrolling: false
   top_zone_ratio: 0.10             # Top margin ratio if enabled
   bottom_zone_ratio: 0.10          # Bottom margin ratio if enabled
   activation_delay_ms: 600.0       # Gaze dwell time before border scrolling commences
-  scroll_interval_ms: 80.0         # Rate limiting between scroll ticks (smooth controlled scrolling)
-  base_wheel_delta: 90             # Controlled wheel delta per tick
+  scroll_interval_ms: 60.0         # Rate limiting between scroll ticks (smooth continuous scrolling)
+  base_wheel_delta: 100            # Controlled wheel delta per tick
   dynamic_speed_scaling: true      # Scale scroll speed based on tilt magnitude (1x to 2.5x)
   max_speed_multiplier: 2.5        # Maximum speed multiplier
 
