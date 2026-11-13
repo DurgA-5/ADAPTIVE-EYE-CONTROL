@@ -97,6 +97,9 @@ class AdaptiveCursorStabilizer:
         self._last_stable_x: int = 960
         self._last_stable_y: int = 540
         self._has_stable_point: bool = False
+        self._fixation_anchor_x: int = 960
+        self._fixation_anchor_y: int = 540
+        self._fixation_counter: int = 0
 
         logger.info(
             "AdaptiveCursorStabilizer initialized (algo=%s, deadzone=%.1f px, min_alpha=%.2f, max_alpha=%.2f)",
@@ -111,6 +114,7 @@ class AdaptiveCursorStabilizer:
         self.ema_filter.reset()
         self.kalman_filter.reset()
         self._has_stable_point = False
+        self._fixation_counter = 0
 
     def stabilize(
         self,
@@ -167,12 +171,26 @@ class AdaptiveCursorStabilizer:
         clamped_x = int(np.clip(round(smooth_x), 0, monitor_w - 1))
         clamped_y = int(np.clip(round(smooth_y), 0, monitor_h - 1))
 
+        # Fixation Dwell Anchor Engine:
+        # When user looks steadily at one location, FREEZE the cursor completely stationary!
+        fixation_dist = float(np.hypot(clamped_x - self._fixation_anchor_x, clamped_y - self._fixation_anchor_y))
+        if fixation_dist < 18.0 or is_deadzone:
+            self._fixation_counter += 1
+            if self._fixation_counter >= 3:
+                clamped_x = self._fixation_anchor_x
+                clamped_y = self._fixation_anchor_y
+                is_deadzone = True
+        else:
+            self._fixation_anchor_x = clamped_x
+            self._fixation_anchor_y = clamped_y
+            self._fixation_counter = 0
+
         self._last_stable_x = clamped_x
         self._last_stable_y = clamped_y
         self._has_stable_point = True
 
         jitter_dist = float(np.hypot(raw_x - clamped_x, raw_y - clamped_y))
-        is_fixating = is_deadzone or (velocity < 120.0)
+        is_fixating = is_deadzone or (velocity < 120.0) or (self._fixation_counter >= 3)
         mode_str = "FIXATION [ROCK-SOLID]" if is_fixating else "SACCADE [FAST-TRACK]"
 
         return StabilizedCursorState(

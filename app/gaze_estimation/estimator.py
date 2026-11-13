@@ -67,8 +67,8 @@ class AdaptiveIrisRangeTracker:
     def __init__(
         self,
         bounds: Optional[IrisRangeBounds] = None,
-        gain_x: float = 1.35,
-        gain_y: float = 1.45,
+        gain_x: float = 1.05,
+        gain_y: float = 1.15,
         neutral_x: float = 0.50,
         neutral_y: float = 0.50,
     ) -> None:
