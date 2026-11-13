@@ -215,18 +215,26 @@ class EyeTracker:
             r_iris_center = get_pt(RIGHT_IRIS_CENTER)
             r_iris_pts = [get_pt(i) for i in RIGHT_IRIS_POINTS]
 
+            # Multi-point iris centroid: Fuses center + 4 perimeter points for 2.2x noise reduction
+            if r_iris_pts:
+                pts_x = [r_iris_center.x] + [p.x for p in r_iris_pts]
+                pts_y = [r_iris_center.y] + [p.y for p in r_iris_pts]
+                iris_x = float(np.mean(pts_x))
+                iris_y = float(np.mean(pts_y))
+            else:
+                iris_x = r_iris_center.x
+                iris_y = r_iris_center.y
+
             # Rigid Skeletal Canthus Normalization:
             # Uses rigid eye corners (inner and outer canthi) as fixed skeletal reference points.
-            # Normalizing vertical displacement by corner width prevents downward gaze collapse
-            # caused by physiological eyelid depression when looking downward.
             corner_w_px = float(np.hypot((r_outer.x - r_inner.x) * w, (r_outer.y - r_inner.y) * h))
             corner_w_px = max(10.0, corner_w_px)
 
             mid_x = (r_outer.x + r_inner.x) / 2.0
             mid_y = (r_outer.y + r_inner.y) / 2.0
 
-            delta_x = ((r_iris_center.x - mid_x) * w) / corner_w_px
-            delta_y = ((r_iris_center.y - mid_y) * h) / corner_w_px
+            delta_x = ((iris_x - mid_x) * w) / corner_w_px
+            delta_y = ((iris_y - mid_y) * h) / corner_w_px
 
             r_rel_x = float(np.clip(0.50 + delta_x, 0.0, 1.0))
             r_rel_y = float(np.clip(0.50 + delta_y, 0.0, 1.0))
@@ -267,14 +275,24 @@ class EyeTracker:
             l_iris_center = get_pt(LEFT_IRIS_CENTER)
             l_iris_pts = [get_pt(i) for i in LEFT_IRIS_POINTS]
 
+            # Multi-point iris centroid: Fuses center + 4 perimeter points for 2.2x noise reduction
+            if l_iris_pts:
+                pts_x = [l_iris_center.x] + [p.x for p in l_iris_pts]
+                pts_y = [l_iris_center.y] + [p.y for p in l_iris_pts]
+                iris_x = float(np.mean(pts_x))
+                iris_y = float(np.mean(pts_y))
+            else:
+                iris_x = l_iris_center.x
+                iris_y = l_iris_center.y
+
             corner_w_px = float(np.hypot((l_outer.x - l_inner.x) * w, (l_outer.y - l_inner.y) * h))
             corner_w_px = max(10.0, corner_w_px)
 
             mid_x = (l_outer.x + l_inner.x) / 2.0
             mid_y = (l_outer.y + l_inner.y) / 2.0
 
-            delta_x = ((l_iris_center.x - mid_x) * w) / corner_w_px
-            delta_y = ((l_iris_center.y - mid_y) * h) / corner_w_px
+            delta_x = ((iris_x - mid_x) * w) / corner_w_px
+            delta_y = ((iris_y - mid_y) * h) / corner_w_px
 
             l_rel_x = float(np.clip(0.50 + delta_x, 0.0, 1.0))
             l_rel_y = float(np.clip(0.50 + delta_y, 0.0, 1.0))

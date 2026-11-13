@@ -100,26 +100,29 @@ class AdaptiveIrisRangeTracker:
         self.neutral_iris_y = 0.50
 
     def update_and_map(self, iris_x: float, iris_y: float) -> Tuple[float, float]:
-        """Map raw relative iris coordinate to full-screen range [0.0, 1.0]."""
+        """Map raw relative iris coordinate to full-screen range [0.0, 1.0] with precision acceleration."""
         # Centered displacement from user-calibrated neutral eye socket center
         disp_x = iris_x - self.neutral_iris_x
         disp_y = iris_y - self.neutral_iris_y
 
         # Physiologically accurate ocular limits for smooth, natural full-screen sweep:
-        # Lateral pupil displacement across laptop monitor is ~0.085 of canthus width
-        # Vertical displacement is ~0.055 up and ~0.045 down
         half_span_x = 0.085
         half_span_y_up = 0.055
         half_span_y_down = 0.045
 
-        # Horizontal mapping
-        nx = 0.50 + (disp_x / half_span_x) * 0.50 * self.gain_x
+        # Sub-pixel Pointer Precision (Gentle S-curve acceleration):
+        # Dampens micro-tremors near center while preserving snappy, full edge-reach
+        def _precision_curve(disp: float, span: float, gain: float) -> float:
+            normalized = disp / span
+            sign = 1.0 if normalized >= 0.0 else -1.0
+            curved = sign * (abs(normalized) ** 1.15)
+            return 0.50 + curved * 0.50 * gain
 
-        # Vertical mapping with natural downward gain for taskbar reach
+        nx = _precision_curve(disp_x, half_span_x, self.gain_x)
         if disp_y >= 0.0:
-            ny = 0.50 + (disp_y / half_span_y_down) * 0.50 * self.gain_y
+            ny = _precision_curve(disp_y, half_span_y_down, self.gain_y)
         else:
-            ny = 0.50 + (disp_y / half_span_y_up) * 0.50 * self.gain_y
+            ny = _precision_curve(disp_y, half_span_y_up, self.gain_y)
 
         return float(np.clip(nx, 0.0, 1.0)), float(np.clip(ny, 0.0, 1.0))
 
