@@ -18,6 +18,7 @@ from typing import Optional, Tuple
 import yaml
 
 from app.core.logger import get_logger
+from app.core.voice_announcer import announce_double_click, announce_single_click
 from app.eye_tracking.tracker import ExtractedEyeFeatures
 
 logger = get_logger("BlinkDetector")
@@ -142,6 +143,7 @@ class ClickDispatcher:
     def dispatch_left_click(self, x: Optional[int] = None, y: Optional[int] = None) -> bool:
         """Trigger physical Left Click with pinpoint target coordinate locking."""
         self._play_click_sound(frequency=1400, duration_ms=45)
+        announce_single_click()
         if self._is_win32 and self._user32:
             if x is not None and y is not None:
                 self._user32.SetCursorPos(int(x), int(y))
@@ -176,6 +178,7 @@ class ClickDispatcher:
     def dispatch_double_click(self, x: Optional[int] = None, y: Optional[int] = None) -> bool:
         """Trigger physical Double Click with pinpoint target coordinate locking."""
         self._play_click_sound(frequency=1800, duration_ms=40)
+        announce_double_click()
         if self._is_win32 and self._user32:
             if x is not None and y is not None:
                 self._user32.SetCursorPos(int(x), int(y))

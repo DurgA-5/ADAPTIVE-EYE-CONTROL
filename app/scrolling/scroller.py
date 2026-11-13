@@ -16,6 +16,7 @@ import yaml
 
 from app.blink_detection.detector import ClickDispatcher, ClickEvent, ClickType
 from app.core.logger import get_logger
+from app.core.voice_announcer import announce_scroll_down, announce_scroll_up
 
 logger = get_logger("EyeScroller")
 
@@ -298,6 +299,10 @@ class EyeScroller:
             sign = 1 if self._current_zone == ScrollDirection.UP else -1
             delta = int(sign * self.config.base_wheel_delta * speed_mult)
             self.dispatcher.dispatch_scroll(wheel_delta=delta, x=cursor_x, y=cursor_y)
+            if self._current_zone == ScrollDirection.UP:
+                announce_scroll_up()
+            elif self._current_zone == ScrollDirection.DOWN:
+                announce_scroll_down()
             self._last_scroll_dispatch_time = now
             scroll_event = ScrollEvent(
                 direction=self._current_zone,

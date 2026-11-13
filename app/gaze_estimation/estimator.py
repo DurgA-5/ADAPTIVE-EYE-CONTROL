@@ -312,38 +312,42 @@ class GazeEstimator:
         result: GazeEstimateResult,
         eye_features: ExtractedEyeFeatures,
         all_landmarks: Optional[List[Point2D]] = None,
+        draw_banner: bool = True,
     ) -> np.ndarray:
         """Render gaze vector rays, target crosshairs, and head pose orientation axes."""
         canvas = bgr_image.copy()
         h, w = canvas.shape[:2]
 
-        # Top banner
-        status_color = (0, 255, 0) if result.is_valid else (0, 0, 255)
-        cv2.rectangle(canvas, (0, 0), (w, 42), (20, 20, 20), -1)
+        if draw_banner:
+            # Top banner
+            status_color = (0, 255, 0) if result.is_valid else (0, 0, 255)
+            cv2.rectangle(canvas, (0, 0), (w, 42), (20, 20, 20), -1)
 
-        yaw_str = f"Yaw: {result.head_angles.yaw:+.1f} deg" if result.head_angles else "Head: N/A"
-        pitch_str = f"Pitch: {result.head_angles.pitch:+.1f} deg" if result.head_angles else ""
+            yaw_str = f"Yaw: {result.head_angles.yaw:+.1f} deg" if result.head_angles else "Head: N/A"
+            pitch_str = f"Pitch: {result.head_angles.pitch:+.1f} deg" if result.head_angles else ""
 
-        banner_text = (
-            f"Gaze [{result.approach.upper()}]: ({result.normalized_x:.2f}, {result.normalized_y:.2f}) -> "
-            f"Screen: ({result.screen_x}, {result.screen_y}) | {yaw_str} {pitch_str} | "
-            f"Conf: {result.confidence:.2f}"
-        )
-        cv2.putText(canvas, banner_text, (15, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.50, status_color, 2, cv2.LINE_AA)
-
-        if not result.is_valid:
-            # Draw bold pause warning
-            cv2.rectangle(canvas, (0, h - 36), (w, h), (0, 0, 180), -1)
-            cv2.putText(
-                canvas,
-                result.status_message,
-                (15, h - 12),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                (255, 255, 255),
-                2,
-                cv2.LINE_AA,
+            banner_text = (
+                f"Gaze [{result.approach.upper()}]: ({result.normalized_x:.2f}, {result.normalized_y:.2f}) -> "
+                f"Screen: ({result.screen_x}, {result.screen_y}) | {yaw_str} {pitch_str} | "
+                f"Conf: {result.confidence:.2f}"
             )
+            cv2.putText(canvas, banner_text, (15, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.50, status_color, 2, cv2.LINE_AA)
+
+            if not result.is_valid:
+                # Draw bold pause warning
+                cv2.rectangle(canvas, (0, h - 36), (w, h), (0, 0, 180), -1)
+                cv2.putText(
+                    canvas,
+                    result.status_message,
+                    (15, h - 12),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (255, 255, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
+                return canvas
+        elif not result.is_valid:
             return canvas
 
         # Draw 3D Head Pose Axes if available

@@ -578,6 +578,16 @@ def run_os_cursor_control_live() -> None:
             # 6. Render Compact Video HUD and Overlays
             annotated = eye_tracker.draw_eye_annotations(frame, eye_feats)
 
+            # Render yellow gaze vector arrows, 3D head pose axes & mini screen target
+            if raw_gaze.is_valid:
+                annotated = gaze_estimator.draw_gaze_overlay(
+                    annotated,
+                    raw_gaze,
+                    eye_feats,
+                    all_lms,
+                    draw_banner=False,
+                )
+
             # Render bystander indicators & authorized user tag
             for (bx, by, bw, bh) in bystander_boxes:
                 cv2.rectangle(annotated, (bx, by), (bx + bw, by + bh), (60, 160, 220), 1)
@@ -627,6 +637,7 @@ def run_os_cursor_control_live() -> None:
                 status_color = (0, 0, 255)
                 status_txt = f"INTERLOCK: {mouse_state.interlock_reason}"
 
+            auth_col = (0, 255, 120) if is_authorized else (0, 0, 255)
             cv2.putText(annotated, status_txt, (15, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.48, status_color, 2, cv2.LINE_AA)
             approach_tag = "PURE IRIS" if gaze_estimator.config.estimation_approach == "pure_iris" else "COMPOUND"
             cv2.putText(annotated, f"Mode: {approach_tag} | Gain: {gaze_estimator.range_tracker.gain:.2f}x | [C] Center | [M] Mode | [F8] Toggle | [Q] Exit", (15, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.40, auth_col, 1, cv2.LINE_AA)
