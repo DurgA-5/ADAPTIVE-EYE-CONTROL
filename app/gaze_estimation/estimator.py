@@ -352,9 +352,10 @@ class GazeEstimator:
         elif not result.is_valid:
             return canvas
 
-        # Draw 3D Head Pose Axes if available
+        # Draw 3D Head Pose Bounding Box, Facial Mesh Points & Orientation Axes
         if result.head_angles and all_landmarks:
-            self.head_pose_estimator.draw_axes(canvas, result.head_angles, all_landmarks, w, h, length=50.0)
+            self.head_pose_estimator.draw_3d_head_box(canvas, result.head_angles, all_landmarks, w, h)
+            self.head_pose_estimator.draw_axes(canvas, result.head_angles, all_landmarks, w, h, length=45.0)
 
         # Draw Gaze Vector Rays originating from pupils
         for eye in (eye_features.right_eye, eye_features.left_eye):

@@ -93,11 +93,11 @@ class VoiceAnnouncer:
 
 # Convenient helper functions
 def announce_single_click() -> None:
-    VoiceAnnouncer.get_instance().speak("Single Click", min_interval_s=0.2)
+    VoiceAnnouncer.get_instance().speak("Single Click", min_interval_s=0.8)
 
 
 def announce_double_click() -> None:
-    VoiceAnnouncer.get_instance().speak("Double Click", min_interval_s=0.3)
+    VoiceAnnouncer.get_instance().speak("Double Click", min_interval_s=0.8)
 
 
 def announce_scroll_up() -> None:

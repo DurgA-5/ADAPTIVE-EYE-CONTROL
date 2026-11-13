@@ -2,15 +2,15 @@
 scrolling:
   # Head-Tilt Continuous Scrolling (Active: Look up head = scroll UP, Look down head = scroll DOWN)
   enable_head_tilt_scrolling: true
-  head_tilt_pitch_threshold_deg: 7.0   # Pitch angle deviation from neutral to start scrolling
-  head_tilt_activation_delay_ms: 160.0 # Responsive gesture activation (160ms)
+  head_tilt_pitch_threshold_deg: 5.5   # 5.5 deg pitch deviation from neutral to start scrolling (effortless head tilt)
+  head_tilt_activation_delay_ms: 120.0 # Responsive gesture activation (120ms)
 
-  # Edge / Border Gaze Scrolling
+  # Edge / Border Gaze Scrolling (Looking towards top/bottom margin)
   enable_edge_scrolling: true
-  top_zone_ratio: 0.12             # Top 12% of screen height triggers scroll up
-  bottom_zone_ratio: 0.12          # Bottom 12% of screen height triggers scroll down
-  activation_delay_ms: 280.0       # Gaze must remain in margin before scrolling commences
-  scroll_interval_ms: 65.0         # Rate limiting between scroll event dispatches
+  top_zone_ratio: 0.14             # Top 14% of screen height triggers scroll up
+  bottom_zone_ratio: 0.14          # Bottom 14% of screen height triggers scroll down
+  activation_delay_ms: 220.0       # Gaze dwell time before border scrolling commences
+  scroll_interval_ms: 65.0         # Rate limiting between scroll ticks
   base_wheel_delta: 120            # Standard Win32 WHEEL_DELTA (positive = up, negative = down)
   dynamic_speed_scaling: true      # Scale scroll speed based on tilt/proximity (1x to 3x)
   max_speed_multiplier: 3.0        # Maximum multiplier at extreme edge/tilt

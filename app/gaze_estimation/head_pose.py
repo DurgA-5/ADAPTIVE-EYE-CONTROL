@@ -162,3 +162,68 @@ class HeadPoseEstimator:
         cv2.line(canvas, nose_pt, p_x, (0, 0, 255), 2, cv2.LINE_AA)
         cv2.line(canvas, nose_pt, p_y, (0, 255, 0), 2, cv2.LINE_AA)
         cv2.line(canvas, nose_pt, p_z, (255, 0, 0), 2, cv2.LINE_AA)
+
+    def draw_3d_head_box(
+        self,
+        canvas: np.ndarray,
+        angles: HeadPoseAngles,
+        landmarks: List[Point2D],
+        img_w: int,
+        img_h: int,
+        box_color: Tuple[int, int, int] = (255, 160, 40),
+        draw_mesh_dots: bool = True,
+    ) -> None:
+        """Render 3D Wireframe Bounding Box and facial surface mesh points."""
+        if not landmarks or len(landmarks) < 468 or angles.rvec is None or angles.tvec is None:
+            return
+
+        camera_matrix = self.get_camera_matrix(img_w, img_h)
+
+        # 1. Draw Dense Facial Surface Mesh Points (white/cyan dots)
+        if draw_mesh_dots:
+            for i in range(0, min(len(landmarks), 468), 2):
+                pt = landmarks[i].to_pixel(img_w, img_h)
+                cv2.circle(canvas, pt, 1, (240, 240, 240), -1, lineType=cv2.LINE_AA)
+
+        # 2. 3D Head Bounding Box Cuboid in Canonical Space
+        head_box_3d = np.array(
+            [
+                [-220.0, -210.0, -40.0],  # 0: Front top left
+                [220.0, -210.0, -40.0],   # 1: Front top right
+                [220.0, 310.0, -40.0],    # 2: Front bottom right
+                [-220.0, 310.0, -40.0],   # 3: Front bottom left
+                [-220.0, -210.0, 190.0],  # 4: Back top left
+                [220.0, -210.0, 190.0],   # 5: Back top right
+                [220.0, 310.0, 190.0],    # 6: Back bottom right
+                [-220.0, 310.0, 190.0],   # 7: Back bottom left
+            ],
+            dtype=np.float64,
+        )
+
+        proj_box, _ = cv2.projectPoints(
+            head_box_3d,
+            angles.rvec,
+            angles.tvec,
+            camera_matrix,
+            self.dist_coeffs,
+        )
+        pts = [(int(p[0][0]), int(p[0][1])) for p in proj_box]
+
+        # Draw 12 connecting edges of the 3D cuboid
+        # Front face
+        for i in range(4):
+            cv2.line(canvas, pts[i], pts[(i + 1) % 4], box_color, 2, cv2.LINE_AA)
+        # Back face
+        for i in range(4):
+            cv2.line(canvas, pts[i + 4], pts[((i + 1) % 4) + 4], (180, 100, 20), 1, cv2.LINE_AA)
+        # 4 connecting pillars
+        for i in range(4):
+            cv2.line(canvas, pts[i], pts[i + 4], box_color, 2, cv2.LINE_AA)
+
+        # 3. Bright Green Nose Orientation Line
+        if len(landmarks) > 168:
+            bridge_pt = landmarks[168].to_pixel(img_w, img_h)
+            nose_pt = landmarks[4].to_pixel(img_w, img_h)
+            cv2.line(canvas, bridge_pt, nose_pt, (0, 255, 60), 3, cv2.LINE_AA)
+            cv2.circle(canvas, bridge_pt, 3, (0, 255, 60), -1, cv2.LINE_AA)
+            cv2.circle(canvas, nose_pt, 4, (0, 255, 60), -1, cv2.LINE_AA)
