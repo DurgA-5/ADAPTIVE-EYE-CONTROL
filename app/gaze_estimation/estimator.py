@@ -33,6 +33,7 @@ class GazeConfig:
     center_bias_y: float = 0.50
     screen_width: int = 1920
     screen_height: int = 1080
+    invert_x: bool = True
 
     @classmethod
     def from_yaml(cls, yaml_path: Path) -> "GazeConfig":
@@ -49,6 +50,7 @@ class GazeConfig:
             sensitivity_y=float(g_data.get("sensitivity_y", 3.2)),
             center_bias_x=float(g_data.get("center_bias_x", 0.50)),
             center_bias_y=float(g_data.get("center_bias_y", 0.50)),
+            invert_x=bool(g_data.get("invert_x", True)),
         )
 
 
@@ -71,6 +73,7 @@ class AdaptiveIrisRangeTracker:
         gain_y: float = 1.15,
         neutral_x: float = 0.50,
         neutral_y: float = 0.50,
+        invert_x: bool = True,
     ) -> None:
         self.bounds = bounds or IrisRangeBounds()
         self.gain_x: float = gain_x
@@ -78,6 +81,7 @@ class AdaptiveIrisRangeTracker:
         self._gain: float = gain_x
         self.neutral_iris_x: float = neutral_x
         self.neutral_iris_y: float = neutral_y
+        self.invert_x: bool = invert_x
 
     @property
     def gain(self) -> float:
@@ -102,7 +106,8 @@ class AdaptiveIrisRangeTracker:
     def update_and_map(self, iris_x: float, iris_y: float) -> Tuple[float, float]:
         """Map raw relative iris coordinate to full-screen range [0.0, 1.0] with precision acceleration."""
         # Centered displacement from user-calibrated neutral eye socket center
-        disp_x = iris_x - self.neutral_iris_x
+        # When invert_x is True: looking left moves cursor left, looking right moves cursor right
+        disp_x = (self.neutral_iris_x - iris_x) if self.invert_x else (iris_x - self.neutral_iris_x)
         disp_y = iris_y - self.neutral_iris_y
 
         # Physiologically accurate ocular limits for smooth, natural full-screen sweep:
@@ -163,6 +168,7 @@ class GazeEstimator:
         self.range_tracker = AdaptiveIrisRangeTracker(
             neutral_x=self.config.center_bias_x,
             neutral_y=self.config.center_bias_y,
+            invert_x=self.config.invert_x,
         )
         self._neutral_pitch: Optional[float] = None
         self._neutral_yaw: Optional[float] = None
@@ -279,7 +285,9 @@ class GazeEstimator:
                 rel_yaw = head_angles.yaw - self._neutral_yaw
                 rel_pitch = head_angles.pitch - self._neutral_pitch
                 # Normalized head motion (+/- 15 degrees nominal span)
-                head_delta_x = (rel_yaw / 15.0)
+                # When invert_x is True: Negate yaw so turning head left shifts cursor left (-X)
+                yaw_dir = -1.0 if self.config.invert_x else 1.0
+                head_delta_x = yaw_dir * (rel_yaw / 15.0)
                 head_delta_y = (rel_pitch / 15.0)
 
         # In pure_iris mode, iris displacement provides 100% full-screen targeting.

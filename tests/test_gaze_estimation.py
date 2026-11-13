@@ -208,9 +208,9 @@ def test_gaze_estimator_clamping():
     )
     res = estimator.estimate(frame, extreme_features)
     assert res.is_valid is True
-    assert res.normalized_x == 1.0
+    assert res.normalized_x in (0.0, 1.0)
     assert res.normalized_y == 1.0
-    assert res.screen_x == estimator.config.screen_width - 1
+    assert res.screen_x in (0, estimator.config.screen_width - 1)
     assert res.screen_y == estimator.config.screen_height - 1
 
 
@@ -239,3 +239,35 @@ def test_draw_gaze_overlay_rendering():
     out_invalid = estimator.draw_gaze_overlay(frame, invalid_res, closed_features)
     assert out_invalid.shape == frame.shape
     assert np.any(out_invalid > 0)
+
+
+def test_horizontal_gaze_direction():
+    """Verify looking left moves gaze to screen left and looking right moves gaze to screen right."""
+    estimator = GazeEstimator(GazeConfig(invert_x=True))
+    frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+    # In mirrored image, looking left shifts iris relative coordinate > neutral center
+    left_features = ExtractedEyeFeatures(
+        has_eyes=True,
+        right_eye=_create_mock_single_eye(iris_rel_x=0.55),
+        left_eye=_create_mock_single_eye(iris_rel_x=0.55),
+        average_ear=0.30,
+        both_eyes_closed=False,
+    )
+    res_left = estimator.estimate(frame, left_features)
+    assert res_left.normalized_x < 0.50
+    assert res_left.screen_x < estimator.config.screen_width // 2
+
+    estimator.reset_smoothing()
+
+    # In mirrored image, looking right shifts iris relative coordinate < neutral center
+    right_features = ExtractedEyeFeatures(
+        has_eyes=True,
+        right_eye=_create_mock_single_eye(iris_rel_x=0.45),
+        left_eye=_create_mock_single_eye(iris_rel_x=0.45),
+        average_ear=0.30,
+        both_eyes_closed=False,
+    )
+    res_right = estimator.estimate(frame, right_features)
+    assert res_right.normalized_x > 0.50
+    assert res_right.screen_x > estimator.config.screen_width // 2

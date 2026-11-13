@@ -7,4 +7,5 @@ gaze_estimation:
   sensitivity_y: 1.6                # Controlled, smooth vertical reach multiplier
   center_bias_x: 0.48               # Calibrated rest center point X
   center_bias_y: 0.44               # Calibrated rest center point Y
+  invert_x: true                    # Invert horizontal X: looking left moves cursor left, looking right moves cursor right
   min_tracking_confidence: 0.55     # Minimum confidence for landmark tracking
