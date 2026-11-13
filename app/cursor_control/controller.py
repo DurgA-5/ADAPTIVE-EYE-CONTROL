@@ -671,7 +671,7 @@ def run_os_cursor_control_live() -> None:
                 secs_left = max(1, (calib_countdown_frames - frame_count + 29) // 30)
                 box_w, box_h = 420, 50
                 cv2.rectangle(annotated, (w // 2 - box_w // 2, h // 2 - box_h // 2), (w // 2 + box_w // 2, h // 2 + box_h // 2), (15, 15, 20), -1)
-                cv2.rectangle(annotated, (w // 2 - box_w // 2, h // 2 - box_h // 2), (0, 240, 255), 2)
+                cv2.rectangle(annotated, (w // 2 - box_w // 2, h // 2 - box_h // 2), (w // 2 + box_w // 2, h // 2 + box_h // 2), (0, 240, 255), 2)
                 cv2.putText(annotated, f"LOOK AT SCREEN CENTER ({secs_left}s)", (w // 2 - 180, h // 2 + 8), cv2.FONT_HERSHEY_SIMPLEX, 0.60, (0, 240, 255), 2, cv2.LINE_AA)
                 cv2.drawMarker(annotated, (w // 2, h // 2), (0, 255, 120), cv2.MARKER_CROSS, 30, 2, cv2.LINE_AA)
 
