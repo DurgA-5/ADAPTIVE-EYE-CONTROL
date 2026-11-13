@@ -393,41 +393,65 @@ def run_os_cursor_control_live() -> None:
             # Multiple faces are permitted in the frame; system locks strictly onto the authorized user!
             if frame_count % 6 == 0:
                 det_res = face_detector.detect(frame)
-                found_authorized = False
                 current_bystanders: List[Tuple[int, int, int, int]] = []
 
                 if det_res.count > 0:
-                    for face in det_res.faces:
-                        ver_res = face_verifier.verify(frame, face)
+                    best_face = None
+                    best_sim = -1.0
+
+                    # Find the face with the highest biometric match to the enrolled authorized template
+                    if face_verifier.is_enrolled and face_verifier._template is not None:
+                        for face in det_res.faces:
+                            try:
+                                aligned = face_verifier.extractor.align_face(frame, face.bbox, face.landmarks)
+                                emb = face_verifier.extractor.extract_embedding(aligned)
+                                sim = float(face_verifier.extractor.compute_similarity(emb, face_verifier._template))
+                                if sim > best_sim:
+                                    best_sim = sim
+                                    best_face = face
+                            except Exception:
+                                pass
+
+                    # If candidate matches enrolled user, verify with state hysteresis
+                    target_candidate = best_face if (best_face is not None and best_sim >= face_verifier.low_threshold) else det_res.primary_face
+
+                    if target_candidate is not None:
+                        ver_res = face_verifier.verify(frame, target_candidate)
                         if ver_res.is_authorized:
-                            found_authorized = True
                             unauth_counter = 0
                             is_authorized = True
                             auth_label = ver_res.user_name or "Authorized User"
-                            cx = face.bbox.xmin + face.bbox.width / 2.0
-                            cy = face.bbox.ymin + face.bbox.height / 2.0
+                            cx = target_candidate.bbox.xmin + target_candidate.bbox.width / 2.0
+                            cy = target_candidate.bbox.ymin + target_candidate.bbox.height / 2.0
                             auth_centroid = (cx, cy)
                             auth_box = (
-                                int(face.bbox.xmin * w),
-                                int(face.bbox.ymin * h),
-                                int(face.bbox.width * w),
-                                int(face.bbox.height * h),
+                                int(target_candidate.bbox.xmin * w),
+                                int(target_candidate.bbox.ymin * h),
+                                int(target_candidate.bbox.width * w),
+                                int(target_candidate.bbox.height * h),
                             )
+
+                            # Record bystander faces for display
+                            for face in det_res.faces:
+                                if face is not target_candidate:
+                                    current_bystanders.append((
+                                        int(face.bbox.xmin * w),
+                                        int(face.bbox.ymin * h),
+                                        int(face.bbox.width * w),
+                                        int(face.bbox.height * h),
+                                    ))
                         else:
-                            current_bystanders.append((
-                                int(face.bbox.xmin * w),
-                                int(face.bbox.ymin * h),
-                                int(face.bbox.width * w),
-                                int(face.bbox.height * h),
-                            ))
-
-                    bystander_boxes = current_bystanders
-
-                    if not found_authorized:
+                            unauth_counter += 1
+                            if unauth_counter >= 4:
+                                is_authorized = False
+                                auth_label = "Unverified Identity"
+                    else:
                         unauth_counter += 1
                         if unauth_counter >= 4:
                             is_authorized = False
-                            auth_label = f"Unverified Subject ({det_res.count} faces, no authorized user)"
+                            auth_label = "Unverified Identity"
+
+                    bystander_boxes = current_bystanders
                 else:
                     unauth_counter += 1
                     if unauth_counter >= 8:
@@ -711,6 +735,9 @@ def run_os_cursor_control_live() -> None:
 
     except Exception as exc:
         logger.error("Error in live cursor control session: %s", exc, exc_info=True)
+        print(f"\n[AdaptiveEye Error] Session encountered an exception: {exc}")
+        import traceback
+        traceback.print_exc()
     finally:
         cam.stop()
         eye_tracker.close()
