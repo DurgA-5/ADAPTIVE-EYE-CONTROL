@@ -184,7 +184,7 @@ class ClickDispatcher:
                 self._user32.SetCursorPos(int(x), int(y))
             self._user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
             self._user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
-            time.sleep(0.04)
+            time.sleep(0.06)
             self._user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
             self._user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
             return True
@@ -217,6 +217,7 @@ class BlinkClickDetector:
         self._pending_single_click: bool = False
         self._pending_single_click_time: float = 0.0
         self._pending_single_click_pos: Tuple[int, int] = (0, 0)
+        self._is_second_blink: bool = False
         self._blink_target_pos: Tuple[int, int] = (0, 0)
         self._last_dispatched_click_time: float = -999.0
         self._last_click_type: ClickType = ClickType.NONE
@@ -238,6 +239,7 @@ class BlinkClickDetector:
         self._right_wink_start = None
         self._pending_single_click = False
         self._pending_single_click_time = 0.0
+        self._is_second_blink = False
         self._last_dispatched_click_time = -999.0
         self._last_click_type = ClickType.NONE
 
@@ -319,9 +321,22 @@ class BlinkClickDetector:
                 self._left_wink_start = None
                 self._right_wink_start = None
 
+                # Check if this closure is part of a double-click gesture
+                if self._pending_single_click:
+                    gap_ms = (now - self._pending_single_click_time) * 1000.0
+                    if gap_ms <= self.config.double_click_window_ms:
+                        self._is_second_blink = True
+                    else:
+                        self._pending_single_click = False
+                        self._is_second_blink = False
+                else:
+                    self._is_second_blink = False
+
             current_duration_ms = (now - self._blink_start_time) * 1000.0
             if current_duration_ms > self.config.long_blink_right_click_ms:
                 status_msg = f"Hold for Right Click ({int(current_duration_ms)}ms)"
+            elif self._is_second_blink:
+                status_msg = f"Double Blink ({int(current_duration_ms)}ms)"
             elif current_duration_ms >= self.config.min_blink_duration_ms:
                 status_msg = f"Intentional Blink ({int(current_duration_ms)}ms)"
             else:
@@ -336,9 +351,28 @@ class BlinkClickDetector:
             target_pos = self._blink_target_pos if self._blink_target_pos != (0, 0) else (cursor_x, cursor_y)
 
             if not is_debouncing:
-                # Classify duration:
-                if duration_ms >= self.config.long_blink_right_click_ms:
-                    # Prolonged deliberate closure -> Right Click
+                # 1. Double Click Completion:
+                # If this closure was the second blink and lasted at least 70ms (deliberate second tap)
+                if self._is_second_blink and duration_ms >= 70.0 and duration_ms <= self.config.max_click_blink_duration_ms:
+                    triggered_event = ClickEvent(
+                        click_type=ClickType.DOUBLE_CLICK,
+                        x=self._pending_single_click_pos[0],
+                        y=self._pending_single_click_pos[1],
+                        duration_ms=round(duration_ms, 1),
+                        timestamp=now,
+                    )
+                    self.dispatcher.dispatch_double_click(
+                        self._pending_single_click_pos[0],
+                        self._pending_single_click_pos[1],
+                    )
+                    self._last_dispatched_click_time = now
+                    self._last_click_type = ClickType.DOUBLE_CLICK
+                    self._pending_single_click = False
+                    self._is_second_blink = False
+                    status_msg = "DOUBLE CLICK TRIGGERED!"
+
+                # 2. Prolonged deliberate closure -> Right Click
+                elif duration_ms >= self.config.long_blink_right_click_ms:
                     triggered_event = ClickEvent(
                         click_type=ClickType.RIGHT_CLICK,
                         x=target_pos[0],
@@ -350,43 +384,24 @@ class BlinkClickDetector:
                     self._last_dispatched_click_time = now
                     self._last_click_type = ClickType.RIGHT_CLICK
                     self._pending_single_click = False
+                    self._is_second_blink = False
                     status_msg = f"RIGHT CLICK [Long Blink {int(duration_ms)}ms]"
 
+                # 3. First intentional deliberate blink -> Mark as Pending Single / Double Click
                 elif duration_ms >= self.config.min_blink_duration_ms and duration_ms <= self.config.max_click_blink_duration_ms:
-                    # Intentional blink in Left Click window
-                    if self._pending_single_click:
-                        time_since_first = (now - self._pending_single_click_time) * 1000.0
-                        if time_since_first <= self.config.double_click_window_ms:
-                            # Second blink arrived within double click window -> DOUBLE CLICK!
-                            triggered_event = ClickEvent(
-                                click_type=ClickType.DOUBLE_CLICK,
-                                x=self._pending_single_click_pos[0],
-                                y=self._pending_single_click_pos[1],
-                                duration_ms=round(duration_ms, 1),
-                                timestamp=now,
-                            )
-                            self.dispatcher.dispatch_double_click(self._pending_single_click_pos[0], self._pending_single_click_pos[1])
-                            self._last_dispatched_click_time = now
-                            self._last_click_type = ClickType.DOUBLE_CLICK
-                            self._pending_single_click = False
-                            status_msg = "DOUBLE CLICK TRIGGERED!"
-                        else:
-                            # Previous pending expired, restart pending with current
-                            self._pending_single_click = True
-                            self._pending_single_click_time = now
-                            self._pending_single_click_pos = target_pos
-                    else:
-                        # First intentional blink: mark as pending double-click opportunity
-                        self._pending_single_click = True
-                        self._pending_single_click_time = now
-                        self._pending_single_click_pos = target_pos
+                    self._pending_single_click = True
+                    self._pending_single_click_time = now
+                    self._pending_single_click_pos = target_pos
+                    self._is_second_blink = False
+                    status_msg = "Blink Captured (Double-click window active)"
                 else:
+                    self._is_second_blink = False
                     status_msg = f"Involuntary Blink Ignored ({int(duration_ms)}ms)"
 
         # -------------------------------------------------------------
         # 2. Pending Single Click Expiration Check (Resolves Left Click)
         # -------------------------------------------------------------
-        if self._pending_single_click and not both_closed:
+        if self._pending_single_click and not both_closed and not self._is_second_blink:
             elapsed = (now - self._pending_single_click_time) * 1000.0
             if elapsed > self.config.double_click_window_ms:
                 # No second blink arrived: Confirm single LEFT CLICK
