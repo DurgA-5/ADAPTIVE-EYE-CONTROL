@@ -47,6 +47,7 @@ class CursorControlConfig:
     enable_mouse_dispatch: bool = True
     mouse_backend: str = "win32"
     smoothing_factor: float = 0.35
+    speed_multiplier: float = 1.0
     acceleration_curve: str = "sigmoid"
     toggle_hotkey_vkey: int = VK_F8
     emergency_corner_failsafe: bool = True
@@ -66,6 +67,7 @@ class CursorControlConfig:
             enable_mouse_dispatch=bool(c_data.get("enable_mouse_dispatch", True)),
             mouse_backend=str(c_data.get("mouse_backend", "win32")),
             smoothing_factor=float(c_data.get("smoothing_factor", 0.35)),
+            speed_multiplier=float(c_data.get("speed_multiplier", 0.65)),
             acceleration_curve=str(c_data.get("acceleration_curve", "sigmoid")),
             toggle_hotkey_vkey=int(c_data.get("toggle_hotkey_vkey", VK_F8)),
             emergency_corner_failsafe=bool(c_data.get("emergency_corner_failsafe", True)),
@@ -168,13 +170,14 @@ class OSCursorController:
 
         # Non-linear Ballistic Acceleration Curve:
         # Small distances (< 45px): Fine precision pointing (slow, smooth, pixel-accurate)
-        # Large distances (>= 45px): Rapid ballistic jump across the monitor
+        # Large distances (>= 45px): Controlled gliding across the monitor
+        speed = max(0.20, min(2.0, getattr(self.config, "speed_multiplier", 1.0)))
         if dist < 45.0:
-            interp = 0.22
+            interp = 0.22 * speed
         elif dist < 200.0:
-            interp = 0.40
+            interp = 0.40 * speed
         else:
-            interp = 0.65
+            interp = 0.65 * speed
 
         # Move current coordinate toward target
         self._curr_x += dx * interp
@@ -638,7 +641,6 @@ def run_os_cursor_control_live() -> None:
                     0.42,
                     (0, 255, 120),
                     1,
-                    cv2.LINE_AA,
                 )
 
             if scroll_state:
@@ -699,11 +701,13 @@ def run_os_cursor_control_live() -> None:
             if key in (ord("q"), ord("Q"), 27):
                 break
             elif key in (ord("+"), ord("=")):
-                gaze_estimator.range_tracker.gain = round(gaze_estimator.range_tracker.gain + 0.15, 2)
-                print(f"Increased gaze sensitivity gain to: {gaze_estimator.range_tracker.gain:.2f}x")
+                mouse_controller.config.speed_multiplier = round(mouse_controller.config.speed_multiplier + 0.10, 2)
+                gaze_estimator.range_tracker.gain = round(gaze_estimator.range_tracker.gain + 0.10, 2)
+                print(f"Increased cursor speed & gain: speed={mouse_controller.config.speed_multiplier:.2f}x, gain={gaze_estimator.range_tracker.gain:.2f}x")
             elif key in (ord("-"), ord("_")):
-                gaze_estimator.range_tracker.gain = max(0.50, round(gaze_estimator.range_tracker.gain - 0.15, 2))
-                print(f"Decreased gaze sensitivity gain to: {gaze_estimator.range_tracker.gain:.2f}x")
+                mouse_controller.config.speed_multiplier = max(0.20, round(mouse_controller.config.speed_multiplier - 0.10, 2))
+                gaze_estimator.range_tracker.gain = max(0.40, round(gaze_estimator.range_tracker.gain - 0.10, 2))
+                print(f"Decreased cursor speed & gain: speed={mouse_controller.config.speed_multiplier:.2f}x, gain={gaze_estimator.range_tracker.gain:.2f}x")
             elif key in (ord("c"), ord("C"), ord("a"), ord("A"), 32):  # 'C' or Spacebar
                 if eye_feats.has_eyes and eye_feats.right_eye and eye_feats.left_eye:
                     avg_ix = (eye_feats.right_eye.iris_relative_x + eye_feats.left_eye.iris_relative_x) / 2.0

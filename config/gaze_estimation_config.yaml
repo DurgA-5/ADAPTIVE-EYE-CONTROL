@@ -3,8 +3,8 @@ gaze_estimation:
   estimation_approach: "compound"    # "compound" (iris + head pose solvePnP) or "pure_iris" (100% eye-controlled)
   iris_weight: 0.85                 # Primary high-precision weight for relative iris displacement in eye sockets
   head_pose_weight: 0.15            # Subtle assistance weight for 3D head yaw/pitch natural corner reach
-  sensitivity_x: 1.8                # Controlled, smooth horizontal reach multiplier
-  sensitivity_y: 1.6                # Controlled, smooth vertical reach multiplier
+  sensitivity_x: 1.45               # Controlled, smooth horizontal reach multiplier (calm, non-jerky)
+  sensitivity_y: 1.30               # Controlled, smooth vertical reach multiplier (calm, non-jerky)
   center_bias_x: 0.48               # Calibrated rest center point X
   center_bias_y: 0.44               # Calibrated rest center point Y
   invert_x: true                    # Invert horizontal X: looking left moves cursor left, looking right moves cursor right

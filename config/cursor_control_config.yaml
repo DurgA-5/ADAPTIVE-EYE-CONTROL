@@ -2,7 +2,8 @@
 cursor_control:
   enable_mouse_dispatch: true              # True = move actual Windows OS mouse cursor
   mouse_backend: "win32"                  # "win32" (ultra-fast ctypes SetCursorPos) or "pyautogui"
-  smoothing_factor: 0.65                  # Snappy responsive ballistic tracking (eliminates cursor lag)
+  speed_multiplier: 0.65                  # Controlled cursor speed (reduced from 1.0 to 0.65 for calm, smooth motion)
+  smoothing_factor: 0.50                  # Smooth ballistic tracking
   acceleration_curve: "sigmoid"           # "linear", "sigmoid", or "power"
   toggle_hotkey_vkey: 0x77                # VK_F8 (0x77 = F8 key) to toggle eye control on/off
   emergency_corner_failsafe: true         # Moving physical mouse to top-left (0,0) disengages eye mouse
