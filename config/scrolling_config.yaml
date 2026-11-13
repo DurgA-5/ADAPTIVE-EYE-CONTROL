@@ -1,14 +1,19 @@
 # AdaptiveEye - Eye Scrolling & Dwell Control Configuration
 scrolling:
-  # Edge / Border Gaze Scrolling (ACTIVE)
+  # Head-Tilt Continuous Scrolling (Active: Look up head = scroll UP, Look down head = scroll DOWN)
+  enable_head_tilt_scrolling: true
+  head_tilt_pitch_threshold_deg: 7.0   # Pitch angle deviation from neutral to start scrolling
+  head_tilt_activation_delay_ms: 160.0 # Responsive gesture activation (160ms)
+
+  # Edge / Border Gaze Scrolling
   enable_edge_scrolling: true
   top_zone_ratio: 0.12             # Top 12% of screen height triggers scroll up
   bottom_zone_ratio: 0.12          # Bottom 12% of screen height triggers scroll down
-  activation_delay_ms: 300.0       # Gaze must remain in margin for 300ms before scrolling commences
-  scroll_interval_ms: 70.0         # Rate limiting between scroll event dispatches
+  activation_delay_ms: 280.0       # Gaze must remain in margin before scrolling commences
+  scroll_interval_ms: 65.0         # Rate limiting between scroll event dispatches
   base_wheel_delta: 120            # Standard Win32 WHEEL_DELTA (positive = up, negative = down)
-  dynamic_speed_scaling: true      # Scale scroll speed based on proximity to screen edge (1x to 3x)
-  max_speed_multiplier: 3.0        # Maximum multiplier at extreme edge
+  dynamic_speed_scaling: true      # Scale scroll speed based on tilt/proximity (1x to 3x)
+  max_speed_multiplier: 3.0        # Maximum multiplier at extreme edge/tilt
 
   # Dwell Fixation Clicking (DISABLED as requested)
   enable_dwell_clicking: false

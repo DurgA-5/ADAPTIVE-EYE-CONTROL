@@ -118,3 +118,32 @@ def test_eye_tracker_draw_annotations():
     # Check that status banner was rendered
     assert np.any(annotated[5:35, 10:200] > 0)
     tracker.close()
+
+
+def test_eye_tracker_multi_face_centroid_matching():
+    """Verify EyeTracker selects the face mesh closest to target_centroid when multiple faces exist."""
+    tracker = EyeTracker(EyeTrackingConfig(max_num_faces=2))
+
+    # Mock face mesh results with 2 faces
+    mock_mesh1 = MagicMock()
+    mock_mesh2 = MagicMock()
+
+    # Face 1 nose at (0.2, 0.5)
+    lms1 = [MagicMock(x=0.2, y=0.5)] * 478
+    mock_mesh1.landmark = lms1
+
+    # Face 2 nose at (0.8, 0.5)
+    lms2 = [MagicMock(x=0.8, y=0.5)] * 478
+    mock_mesh2.landmark = lms2
+
+    mock_results = MagicMock()
+    mock_results.multi_face_landmarks = [mock_mesh1, mock_mesh2]
+    tracker.mesh.process = MagicMock(return_value=mock_results)
+
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+
+    # Targeting face 2 near (0.85, 0.5)
+    features = tracker.process(frame, target_centroid=(0.85, 0.5))
+    assert features.has_eyes is True
+    tracker.close()
+

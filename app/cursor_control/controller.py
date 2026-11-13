@@ -328,9 +328,9 @@ def run_os_cursor_control_live() -> None:
 
     # Load Subsystems
     cam = CameraManager(CameraConfig(width=1280, height=720, mirror=True))
-    face_detector = FaceDetector(FaceDetectorConfig(max_num_faces=1, min_detection_confidence=0.60))
+    face_detector = FaceDetector(FaceDetectorConfig(max_num_faces=4, min_detection_confidence=0.55, allow_multiple_faces=True))
     face_verifier = FaceVerifier()
-    eye_tracker = EyeTracker(EyeTrackingConfig(refine_landmarks=True))
+    eye_tracker = EyeTracker(EyeTrackingConfig(refine_landmarks=True, max_num_faces=4))
     gaze_cfg_path = Path("config/gaze_estimation_config.yaml")
     gaze_config = GazeConfig.from_yaml(gaze_cfg_path)
     gaze_config.screen_width = screen_w
@@ -357,18 +357,23 @@ def run_os_cursor_control_live() -> None:
     print("  [M] - Toggle Mode: Switch between Pure Iris (100% Eye) and Compound (Head-assisted)")
     print("  [F8] - Toggle Eye Mouse On / Off (Pause & Resume)")
     print("  [+] / [-] - Increase / Decrease gaze reach sensitivity")
-    print("  [S] - Toggle Gaze Border Scrolling On / Off")
+    print("  [S] - Toggle Scrolling On / Off")
     print("  [Q] or [ESC] - Exit application\n")
-    print("Active Gestures:")
-    print("  * SINGLE CLICK: Conscious blink (close eyes ~0.35s and reopen)")
-    print("  * DOUBLE CLICK: Two rapid intentional blinks (<0.65s)")
-    print("  * SCREEN SCROLL: Look to top edge to scroll UP, bottom edge to scroll DOWN\n")
+    print("Active Gestures & Features:")
+    print("  * MULTI-PERSON TOLERANCE: Multiple faces allowed; only authorized person controls cursor")
+    print("  * SINGLE CLICK: One deliberate blink (~150-550ms) -> Left Click")
+    print("  * DOUBLE CLICK: Two rapid intentional blinks (<380ms) -> Double Click")
+    print("  * HEAD-TILT SCROLL: Tilt head UP to scroll UP, tilt head DOWN to scroll DOWN")
+    print("  * EDGE SCROLL: Look towards top or bottom border to scroll")
     print("Safety Feature: Hold physical mouse in top-left corner (0,0) to disengage.")
     print("=================================================================\n")
 
     frame_count = 0
     is_authorized = True  # Defaults to True; verified periodically
     auth_label = "Authorized User"
+    auth_centroid: Optional[Tuple[float, float]] = None
+    auth_box: Optional[Tuple[int, int, int, int]] = None
+    bystander_boxes: List[Tuple[int, int, int, int]] = []
     unauth_counter = 0
     click_flash_counter = 0
     last_click_name = ""
@@ -384,37 +389,79 @@ def run_os_cursor_control_live() -> None:
             h, w = frame.shape[:2]
             frame_count += 1
 
-            # 1. Face Detection & Cadence-Decoupled ArcFace Biometrics (Every 6 frames)
+            # 1. Multi-Face Detection & ArcFace Biometrics (Every 6 frames)
+            # Multiple faces are permitted in the frame; system locks strictly onto the authorized user!
             if frame_count % 6 == 0:
                 det_res = face_detector.detect(frame)
-                if det_res.is_safe and det_res.primary_face:
-                    ver_res = face_verifier.verify(frame, det_res.primary_face)
-                    if ver_res.is_authorized:
-                        unauth_counter = 0
-                        is_authorized = True
-                        auth_label = ver_res.user_name or "Authorized User"
-                    else:
-                        unauth_counter += 1
-                        if unauth_counter >= 3:
-                            is_authorized = False
-                            auth_label = "Unverified Identity"
-                elif det_res.multi_face_hazard:
-                    is_authorized = False
-                    auth_label = "SECURITY ALERT: MULTIPLE FACES"
+                found_authorized = False
+                current_bystanders: List[Tuple[int, int, int, int]] = []
 
-            # 2. Eye & Iris Feature Tracking
+                if det_res.count > 0:
+                    for face in det_res.faces:
+                        ver_res = face_verifier.verify(frame, face)
+                        if ver_res.is_authorized:
+                            found_authorized = True
+                            unauth_counter = 0
+                            is_authorized = True
+                            auth_label = ver_res.user_name or "Authorized User"
+                            cx = face.bbox.xmin + face.bbox.width / 2.0
+                            cy = face.bbox.ymin + face.bbox.height / 2.0
+                            auth_centroid = (cx, cy)
+                            auth_box = (
+                                int(face.bbox.xmin * w),
+                                int(face.bbox.ymin * h),
+                                int(face.bbox.width * w),
+                                int(face.bbox.height * h),
+                            )
+                        else:
+                            current_bystanders.append((
+                                int(face.bbox.xmin * w),
+                                int(face.bbox.ymin * h),
+                                int(face.bbox.width * w),
+                                int(face.bbox.height * h),
+                            ))
+
+                    bystander_boxes = current_bystanders
+
+                    if not found_authorized:
+                        unauth_counter += 1
+                        if unauth_counter >= 4:
+                            is_authorized = False
+                            auth_label = f"Unverified Subject ({det_res.count} faces, no authorized user)"
+                else:
+                    unauth_counter += 1
+                    if unauth_counter >= 8:
+                        is_authorized = False
+                        auth_label = "No Face Detected"
+                        bystander_boxes = []
+                        auth_box = None
+
+            # 2. Eye & Iris Feature Tracking (Targeted at Authorized Person)
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             rgb.flags.writeable = False
             mesh_res = eye_tracker.mesh.process(rgb)
 
             all_lms = None
             if mesh_res.multi_face_landmarks:
+                if auth_centroid is not None and len(mesh_res.multi_face_landmarks) > 1:
+                    best_idx = 0
+                    min_dist = float("inf")
+                    for idx, f_lms in enumerate(mesh_res.multi_face_landmarks):
+                        nose = f_lms.landmark[4]
+                        dist = float(np.hypot(nose.x - auth_centroid[0], nose.y - auth_centroid[1]))
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_idx = idx
+                    target_mesh = mesh_res.multi_face_landmarks[best_idx]
+                else:
+                    target_mesh = mesh_res.multi_face_landmarks[0]
+
                 all_lms = [
                     Point2D(x=float(lm.x), y=float(lm.y))
-                    for lm in mesh_res.multi_face_landmarks[0].landmark
+                    for lm in target_mesh.landmark
                 ]
 
-            eye_feats = eye_tracker.process(frame)
+            eye_feats = eye_tracker.process(frame, target_centroid=auth_centroid)
             raw_gaze = gaze_estimator.estimate(frame, eye_feats, all_lms)
 
             # 2.5s Center Calibration Countdown & Sampling
@@ -515,17 +562,49 @@ def run_os_cursor_control_live() -> None:
                     last_click_name = click_evt.click_type.value
                     print(f"\n[AdaptiveEye Click] >>> {last_click_name} triggered at ({click_evt.x}, {click_evt.y}) <<<")
 
-                # Edge Scrolling (only active while eyes are open and gaze is tracking)
+                # Continuous Scrolling (Head-tilt look up/down or edge margins)
                 if not mouse_state.is_interlocked:
+                    curr_pitch = raw_gaze.head_angles.pitch if raw_gaze.head_angles else None
+                    neut_pitch = gaze_estimator._neutral_pitch
                     scroll_evt, scroll_state = eye_scroller.process(
                         cursor_y=mouse_state.current_y,
                         screen_h=screen_h,
                         cursor_x=mouse_state.current_x,
                         is_active=True,
+                        head_pitch=curr_pitch,
+                        neutral_pitch=neut_pitch,
                     )
 
             # 6. Render Compact Video HUD and Overlays
             annotated = eye_tracker.draw_eye_annotations(frame, eye_feats)
+
+            # Render bystander indicators & authorized user tag
+            for (bx, by, bw, bh) in bystander_boxes:
+                cv2.rectangle(annotated, (bx, by), (bx + bw, by + bh), (60, 160, 220), 1)
+                cv2.putText(
+                    annotated,
+                    "Bystander (Ignored)",
+                    (bx, max(15, by - 6)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.38,
+                    (60, 160, 220),
+                    1,
+                    cv2.LINE_AA,
+                )
+            if auth_box and is_authorized:
+                (ax, ay, aw, ah) = auth_box
+                cv2.rectangle(annotated, (ax, ay), (ax + aw, ay + ah), (0, 255, 120), 2)
+                cv2.putText(
+                    annotated,
+                    f"Authorized: {auth_label}",
+                    (ax, max(15, ay - 6)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.42,
+                    (0, 255, 120),
+                    1,
+                    cv2.LINE_AA,
+                )
+
             if scroll_state:
                 annotated = draw_scrolling_overlay(annotated, scroll_state, dwell_state)
 

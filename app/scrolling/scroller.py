@@ -34,6 +34,11 @@ class ScrollDirection(str, Enum):
 @dataclass
 class ScrollingConfig:
     """Strongly-typed parameters for Gaze Border Scrolling and Fixation Dwell Clicking."""
+    # Head-Tilt Continuous Scrolling
+    enable_head_tilt_scrolling: bool = True
+    head_tilt_pitch_threshold_deg: float = 7.0
+    head_tilt_activation_delay_ms: float = 160.0
+
     # Border / Edge Scrolling
     enable_edge_scrolling: bool = True
     top_zone_ratio: float = 0.12
@@ -64,6 +69,9 @@ class ScrollingConfig:
 
         s_data = data.get("scrolling", {})
         return cls(
+            enable_head_tilt_scrolling=bool(s_data.get("enable_head_tilt_scrolling", True)),
+            head_tilt_pitch_threshold_deg=float(s_data.get("head_tilt_pitch_threshold_deg", 7.0)),
+            head_tilt_activation_delay_ms=float(s_data.get("head_tilt_activation_delay_ms", 160.0)),
             enable_edge_scrolling=bool(s_data.get("enable_edge_scrolling", True)),
             top_zone_ratio=float(s_data.get("top_zone_ratio", 0.12)),
             bottom_zone_ratio=float(s_data.get("bottom_zone_ratio", 0.12)),
@@ -177,15 +185,19 @@ class EyeScroller:
         screen_h: int,
         cursor_x: Optional[int] = None,
         is_active: bool = True,
+        head_pitch: Optional[float] = None,
+        neutral_pitch: Optional[float] = None,
         timestamp: Optional[float] = None,
     ) -> Tuple[Optional[ScrollEvent], ScrollState]:
-        """Evaluate cursor position against screen edge margins and dispatch scroll events.
+        """Evaluate cursor position and head tilt to dispatch scroll events.
 
         Args:
             cursor_y: Target Y screen coordinate.
             screen_h: Monitor screen height in pixels.
             cursor_x: Optional target X coordinate.
             is_active: True if system is operational and authorized.
+            head_pitch: Optional current 3D head pitch in degrees.
+            neutral_pitch: Optional user calibrated neutral pitch in degrees.
             timestamp: Optional mockable timestamp (seconds).
 
         Returns:
@@ -193,7 +205,7 @@ class EyeScroller:
         """
         now = time.perf_counter() if timestamp is None else timestamp
 
-        if not self.config.enable_edge_scrolling or not is_active:
+        if (not self.config.enable_edge_scrolling and not self.config.enable_head_tilt_scrolling) or not is_active:
             self.reset()
             return None, ScrollState(
                 direction=ScrollDirection.NONE,
@@ -203,15 +215,32 @@ class EyeScroller:
                 status_message="Scrolling Disabled / Inactive",
             )
 
-        top_limit = int(screen_h * self.config.top_zone_ratio)
-        bottom_limit = int(screen_h * (1.0 - self.config.bottom_zone_ratio))
-
-        # Detect active zone
         detected_zone = ScrollDirection.NONE
-        if cursor_y <= top_limit:
-            detected_zone = ScrollDirection.UP
-        elif cursor_y >= bottom_limit:
-            detected_zone = ScrollDirection.DOWN
+        is_head_tilt = False
+        tilt_intensity = 0.0
+
+        # 1. Head-Tilt Continuous Scrolling Check
+        # User looks up with head -> Scroll UP; looks down with head -> Scroll DOWN
+        if self.config.enable_head_tilt_scrolling and head_pitch is not None and neutral_pitch is not None:
+            rel_pitch = head_pitch - neutral_pitch
+            thresh = self.config.head_tilt_pitch_threshold_deg
+            if rel_pitch < -thresh:
+                detected_zone = ScrollDirection.UP
+                is_head_tilt = True
+                tilt_intensity = min(1.0, max(0.0, (abs(rel_pitch) - thresh) / 8.0))
+            elif rel_pitch > thresh:
+                detected_zone = ScrollDirection.DOWN
+                is_head_tilt = True
+                tilt_intensity = min(1.0, max(0.0, (rel_pitch - thresh) / 8.0))
+
+        # 2. Border Edge Gaze Scrolling Check (Active when head is near neutral)
+        if detected_zone == ScrollDirection.NONE and self.config.enable_edge_scrolling:
+            top_limit = int(screen_h * self.config.top_zone_ratio)
+            bottom_limit = int(screen_h * (1.0 - self.config.bottom_zone_ratio))
+            if cursor_y <= top_limit:
+                detected_zone = ScrollDirection.UP
+            elif cursor_y >= bottom_limit:
+                detected_zone = ScrollDirection.DOWN
 
         # Handle zone transition
         if detected_zone != self._current_zone:
@@ -231,26 +260,35 @@ class EyeScroller:
             )
 
         elapsed_ms = (now - self._zone_entry_time) * 1000.0
-        activation_ms = max(1.0, self.config.activation_delay_ms)
+        activation_ms = max(
+            1.0,
+            self.config.head_tilt_activation_delay_ms if is_head_tilt else self.config.activation_delay_ms,
+        )
         dwell_progress = min(1.0, max(0.0, elapsed_ms / activation_ms))
 
+        source_label = "Head-Tilt" if is_head_tilt else "Gaze-Edge"
         if dwell_progress < 1.0:
             return None, ScrollState(
                 direction=self._current_zone,
                 is_scrolling=False,
                 speed_multiplier=1.0,
                 zone_dwell_progress=round(dwell_progress, 3),
-                status_message=f"Entering {self._current_zone.value} Zone ({int(dwell_progress * 100)}%)",
+                status_message=f"{source_label} {self._current_zone.value} ({int(dwell_progress * 100)}%)",
             )
 
         # In active scrolling mode: compute dynamic speed multiplier
         speed_mult = 1.0
         if self.config.dynamic_speed_scaling:
-            if self._current_zone == ScrollDirection.UP:
+            if is_head_tilt:
+                speed_mult = 1.0 + tilt_intensity * (self.config.max_speed_multiplier - 1.0)
+            elif self._current_zone == ScrollDirection.UP:
+                top_limit = int(screen_h * self.config.top_zone_ratio)
                 penetration = max(0.0, min(1.0, (top_limit - cursor_y) / max(1, top_limit)))
+                speed_mult = 1.0 + penetration * (self.config.max_speed_multiplier - 1.0)
             else:
+                bottom_limit = int(screen_h * (1.0 - self.config.bottom_zone_ratio))
                 penetration = max(0.0, min(1.0, (cursor_y - bottom_limit) / max(1, screen_h - bottom_limit)))
-            speed_mult = 1.0 + penetration * (self.config.max_speed_multiplier - 1.0)
+                speed_mult = 1.0 + penetration * (self.config.max_speed_multiplier - 1.0)
 
         # Check dispatch rate interval
         time_since_dispatch_ms = (now - self._last_scroll_dispatch_time) * 1000.0
@@ -273,7 +311,7 @@ class EyeScroller:
             is_scrolling=True,
             speed_multiplier=round(speed_mult, 2),
             zone_dwell_progress=1.0,
-            status_message=f"Scrolling {self._current_zone.value} ({speed_mult:.1f}x)",
+            status_message=f"{source_label} Scrolling {self._current_zone.value} ({speed_mult:.1f}x)",
         )
 
 
@@ -465,9 +503,10 @@ def draw_scrolling_overlay(
         rect = np.full(sub_img.shape, (20, 40, 20) if is_up else (20, 20, 50), dtype=np.uint8)
         cv2.addWeighted(sub_img, 0.4, rect, 0.6, 1.0, sub_img)
 
-        arrow_txt = "▲▲▲ SCROLLING UP ▲▲▲" if is_up else "▼▼▼ SCROLLING DOWN ▼▼▼"
+        prefix = "HEAD TILT " if "Head-Tilt" in scroll_state.status_message else ""
+        arrow_txt = f"▲▲▲ {prefix}SCROLLING UP ▲▲▲" if is_up else f"▼▼▼ {prefix}SCROLLING DOWN ▼▼▼"
         if not scroll_state.is_scrolling:
-            arrow_txt = f"Entering {scroll_state.direction.value} Scroll ({int(scroll_state.zone_dwell_progress * 100)}%)"
+            arrow_txt = f"{scroll_state.status_message}"
 
         cv2.putText(
             annotated,

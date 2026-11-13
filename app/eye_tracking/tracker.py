@@ -142,8 +142,19 @@ class EyeTracker:
             return 0.0
         return float((v1 + v2) / (2.0 * horiz))
 
-    def process(self, bgr_image: np.ndarray) -> ExtractedEyeFeatures:
-        """Extract eye contours, irises, and EAR metrics from a BGR frame."""
+    def process(
+        self,
+        bgr_image: np.ndarray,
+        target_centroid: Optional[Tuple[float, float]] = None,
+    ) -> ExtractedEyeFeatures:
+        """Extract eye contours, irises, and EAR metrics from a BGR frame.
+
+        Args:
+            bgr_image: OpenCV BGR frame (H, W, 3).
+            target_centroid: Optional (x, y) normalized centroid of the authorized user's face.
+                             When multiple faces are present in the scene, the mesh closest to
+                             this centroid is selected, ensuring only the authorized user controls gaze.
+        """
         if bgr_image is None or bgr_image.size == 0:
             return ExtractedEyeFeatures(has_eyes=False)
 
@@ -159,8 +170,21 @@ class EyeTracker:
         if not results.multi_face_landmarks:
             return ExtractedEyeFeatures(has_eyes=False, latency_ms=latency)
 
-        # Single authorized locked face (face 0)
-        landmarks = results.multi_face_landmarks[0].landmark
+        # Match authorized face if target_centroid is provided and multiple face meshes exist
+        if target_centroid is not None and len(results.multi_face_landmarks) > 1:
+            best_idx = 0
+            min_dist = float("inf")
+            for idx, face_lms in enumerate(results.multi_face_landmarks):
+                # Landmark 4 is canonical nose tip
+                nose = face_lms.landmark[4]
+                dist = float(np.hypot(nose.x - target_centroid[0], nose.y - target_centroid[1]))
+                if dist < min_dist:
+                    min_dist = dist
+                    best_idx = idx
+            landmarks = results.multi_face_landmarks[best_idx].landmark
+        else:
+            landmarks = results.multi_face_landmarks[0].landmark
+
         num_landmarks = len(landmarks)
 
         # Check if iris points (468-477) are present

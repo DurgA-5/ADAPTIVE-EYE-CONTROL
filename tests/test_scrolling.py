@@ -296,3 +296,51 @@ def test_draw_scrolling_overlay():
     annotated = draw_scrolling_overlay(frame, scroll_state, dwell_state)
     assert annotated is not None
     assert annotated.shape == (480, 640, 3)
+
+
+def test_head_tilt_scrolling_up_and_down():
+    """Verify head-tilt scrolling triggers UP on pitch-up and DOWN on pitch-down."""
+    cfg = ScrollingConfig(
+        enable_head_tilt_scrolling=True,
+        head_tilt_pitch_threshold_deg=7.0,
+        head_tilt_activation_delay_ms=100.0,
+        scroll_interval_ms=50.0,
+    )
+    scroller = EyeScroller(cfg)
+    scroller.dispatcher.dispatch_scroll = MagicMock()
+
+    neutral_pitch = 0.0
+
+    # 1. Neutral head pitch (pitch=0.0) -> No scroll
+    evt, state = scroller.process(cursor_y=540, screen_h=1080, head_pitch=0.0, neutral_pitch=neutral_pitch, timestamp=0.0)
+    assert evt is None
+    assert state.is_scrolling is False
+
+    # 2. Looking UP with head (pitch = -12.0 deg, relative = -12 < -7)
+    # T=0.1s: start tilt up
+    evt, state = scroller.process(cursor_y=540, screen_h=1080, head_pitch=-12.0, neutral_pitch=neutral_pitch, timestamp=0.1)
+    assert evt is None
+    assert state.direction == ScrollDirection.UP
+
+    # T=0.25s: activation delay passed (150ms > 100ms) -> Scroll UP dispatched!
+    evt, state = scroller.process(cursor_y=540, screen_h=1080, head_pitch=-12.0, neutral_pitch=neutral_pitch, timestamp=0.25)
+    assert evt is not None
+    assert evt.direction == ScrollDirection.UP
+    assert evt.wheel_delta > 0
+    assert state.is_scrolling is True
+    scroller.dispatcher.dispatch_scroll.assert_called()
+
+    # 3. Looking DOWN with head (pitch = +12.0 deg, relative = +12 > +7)
+    scroller.reset()
+    # T=1.0s: start tilt down
+    evt, state = scroller.process(cursor_y=540, screen_h=1080, head_pitch=12.0, neutral_pitch=neutral_pitch, timestamp=1.0)
+    assert evt is None
+    assert state.direction == ScrollDirection.DOWN
+
+    # T=1.15s: activation passed -> Scroll DOWN dispatched!
+    evt, state = scroller.process(cursor_y=540, screen_h=1080, head_pitch=12.0, neutral_pitch=neutral_pitch, timestamp=1.15)
+    assert evt is not None
+    assert evt.direction == ScrollDirection.DOWN
+    assert evt.wheel_delta < 0
+    assert state.is_scrolling is True
+
