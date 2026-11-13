@@ -331,7 +331,11 @@ def run_os_cursor_control_live() -> None:
     face_detector = FaceDetector(FaceDetectorConfig(max_num_faces=1, min_detection_confidence=0.60))
     face_verifier = FaceVerifier()
     eye_tracker = EyeTracker(EyeTrackingConfig(refine_landmarks=True))
-    gaze_estimator = GazeEstimator(GazeConfig(screen_width=screen_w, screen_height=screen_h))
+    gaze_cfg_path = Path("config/gaze_estimation_config.yaml")
+    gaze_config = GazeConfig.from_yaml(gaze_cfg_path)
+    gaze_config.screen_width = screen_w
+    gaze_config.screen_height = screen_h
+    gaze_estimator = GazeEstimator(gaze_config)
     calibrator = AdaptiveCalibrator(AdaptiveConfig.from_yaml(Path("config/adaptive_calibration_config.yaml")))
     stabilizer = AdaptiveCursorStabilizer(StabilizerConfig.from_yaml(Path("config/stabilization_config.yaml")))
     mouse_controller = OSCursorController(CursorControlConfig.from_yaml(Path("config/cursor_control_config.yaml")))
@@ -350,6 +354,7 @@ def run_os_cursor_control_live() -> None:
     print("=================================================================")
     print("Controls:")
     print("  [C] or [A] - Calibrate Center: Look at screen center and press [C] to lock center gaze!")
+    print("  [M] - Toggle Mode: Switch between Pure Iris (100% Eye) and Compound (Head-assisted)")
     print("  [F8] - Toggle Eye Mouse On / Off (Pause & Resume)")
     print("  [+] / [-] - Increase / Decrease gaze reach sensitivity")
     print("  [S] - Toggle Gaze Border Scrolling On / Off")
@@ -369,6 +374,9 @@ def run_os_cursor_control_live() -> None:
     last_click_name = ""
     last_valid_x = screen_w // 2
     last_valid_y = screen_h // 2
+    calib_countdown_frames = 75  # ~2.5 seconds at 30 FPS for graceful startup calibration
+    initial_calib_samples: List[Tuple[float, float, float, float]] = []
+    is_center_calibrated = False
 
     try:
         cam.start()
@@ -409,16 +417,39 @@ def run_os_cursor_control_live() -> None:
             eye_feats = eye_tracker.process(frame)
             raw_gaze = gaze_estimator.estimate(frame, eye_feats, all_lms)
 
-            # Auto-anchor natural posture and resting iris baseline once user settles (Frame 30)
-            if frame_count == 30 and raw_gaze.head_angles and eye_feats.has_eyes and eye_feats.right_eye and eye_feats.left_eye:
-                avg_ix = (eye_feats.right_eye.iris_relative_x + eye_feats.left_eye.iris_relative_x) / 2.0
-                avg_iy = (eye_feats.right_eye.iris_relative_y + eye_feats.left_eye.iris_relative_y) / 2.0
-                calibrator.set_baseline(raw_gaze.head_angles, eye_feats, w, h)
-                gaze_estimator.set_neutral_posture(raw_gaze.head_angles.yaw, raw_gaze.head_angles.pitch, avg_ix, avg_iy)
-                print(f"[AdaptiveEye Auto-Center] Resting gaze calibrated to ({avg_ix:.3f}, {avg_iy:.3f})")
+            # 2.5s Center Calibration Countdown & Sampling
+            if not is_center_calibrated:
+                if eye_feats.has_eyes and eye_feats.right_eye and eye_feats.left_eye:
+                    avg_ix = (eye_feats.right_eye.iris_relative_x + eye_feats.left_eye.iris_relative_x) / 2.0
+                    avg_iy = (eye_feats.right_eye.iris_relative_y + eye_feats.left_eye.iris_relative_y) / 2.0
+                    yaw = raw_gaze.head_angles.yaw if raw_gaze.head_angles else 0.0
+                    pitch = raw_gaze.head_angles.pitch if raw_gaze.head_angles else 0.0
+                    if frame_count >= 25:
+                        initial_calib_samples.append((avg_ix, avg_iy, yaw, pitch))
+
+                if frame_count >= calib_countdown_frames:
+                    if initial_calib_samples:
+                        med_ix = float(np.median([s[0] for s in initial_calib_samples]))
+                        med_iy = float(np.median([s[1] for s in initial_calib_samples]))
+                        med_yaw = float(np.median([s[2] for s in initial_calib_samples]))
+                        med_pitch = float(np.median([s[3] for s in initial_calib_samples]))
+                    else:
+                        med_ix, med_iy = 0.50, 0.50
+                        med_yaw, med_pitch = 0.0, 0.0
+
+                    if raw_gaze.head_angles and eye_feats.has_eyes:
+                        calibrator.set_baseline(raw_gaze.head_angles, eye_feats, w, h)
+                    gaze_estimator.set_neutral_posture(med_yaw, med_pitch, med_ix, med_iy)
+                    mouse_controller._curr_x = float(screen_w // 2)
+                    mouse_controller._curr_y = float(screen_h // 2)
+                    if mouse_controller._is_win32_available and mouse_controller._user32:
+                        mouse_controller._user32.SetCursorPos(screen_w // 2, screen_h // 2)
+                    is_center_calibrated = True
+                    print(f"\n[AdaptiveEye Auto-Center] Done! Neutral resting gaze locked to ({med_ix:.3f}, {med_iy:.3f})")
+                    print("Cursor is now actively following your eye movements! Press [C] anytime to re-center.\n")
 
             # 3. Adaptive Posture Drift Compensation & Stabilization
-            if raw_gaze.is_valid:
+            if raw_gaze.is_valid and is_center_calibrated:
                 adapted_x, adapted_y, _ = calibrator.compensate(
                     raw_gaze.screen_x,
                     raw_gaze.screen_y,
@@ -433,6 +464,16 @@ def run_os_cursor_control_live() -> None:
                     adapted_x,
                     adapted_y,
                     confidence=raw_gaze.confidence,
+                    is_valid=True,
+                    monitor_w=screen_w,
+                    monitor_h=screen_h,
+                )
+            elif not is_center_calibrated:
+                # During calibration countdown, hold cursor rock-solid at center
+                cursor_state = stabilizer.stabilize(
+                    screen_w // 2,
+                    screen_h // 2,
+                    confidence=1.0,
                     is_valid=True,
                     monitor_w=screen_w,
                     monitor_h=screen_h,
@@ -508,8 +549,17 @@ def run_os_cursor_control_live() -> None:
                 status_txt = f"INTERLOCK: {mouse_state.interlock_reason}"
 
             cv2.putText(annotated, status_txt, (15, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.48, status_color, 2, cv2.LINE_AA)
-            auth_col = (0, 255, 120) if is_authorized else (0, 0, 255)
-            cv2.putText(annotated, f"Identity: {auth_label} | Reach Gain: {gaze_estimator.range_tracker.gain:.2f}x | [F8] Toggle | [Q] Exit", (15, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.42, auth_col, 1, cv2.LINE_AA)
+            approach_tag = "PURE IRIS" if gaze_estimator.config.estimation_approach == "pure_iris" else "COMPOUND"
+            cv2.putText(annotated, f"Mode: {approach_tag} | Gain: {gaze_estimator.range_tracker.gain:.2f}x | [C] Center | [M] Mode | [F8] Toggle | [Q] Exit", (15, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.40, auth_col, 1, cv2.LINE_AA)
+
+            # Startup Center Calibration Visual Target
+            if not is_center_calibrated:
+                secs_left = max(1, (calib_countdown_frames - frame_count + 29) // 30)
+                box_w, box_h = 420, 50
+                cv2.rectangle(annotated, (w // 2 - box_w // 2, h // 2 - box_h // 2), (w // 2 + box_w // 2, h // 2 + box_h // 2), (15, 15, 20), -1)
+                cv2.rectangle(annotated, (w // 2 - box_w // 2, h // 2 - box_h // 2), (0, 240, 255), 2)
+                cv2.putText(annotated, f"LOOK AT SCREEN CENTER ({secs_left}s)", (w // 2 - 180, h // 2 + 8), cv2.FONT_HERSHEY_SIMPLEX, 0.60, (0, 240, 255), 2, cv2.LINE_AA)
+                cv2.drawMarker(annotated, (w // 2, h // 2), (0, 255, 120), cv2.MARKER_CROSS, 30, 2, cv2.LINE_AA)
 
             # Click Event Visual Feedback Overlay
             if click_flash_counter > 0:
@@ -539,12 +589,27 @@ def run_os_cursor_control_live() -> None:
                 gaze_estimator.range_tracker.gain = max(0.50, round(gaze_estimator.range_tracker.gain - 0.15, 2))
                 print(f"Decreased gaze sensitivity gain to: {gaze_estimator.range_tracker.gain:.2f}x")
             elif key in (ord("c"), ord("C"), ord("a"), ord("A")):
-                if raw_gaze.head_angles and eye_feats.has_eyes and eye_feats.right_eye and eye_feats.left_eye:
+                if eye_feats.has_eyes and eye_feats.right_eye and eye_feats.left_eye:
                     avg_ix = (eye_feats.right_eye.iris_relative_x + eye_feats.left_eye.iris_relative_x) / 2.0
                     avg_iy = (eye_feats.right_eye.iris_relative_y + eye_feats.left_eye.iris_relative_y) / 2.0
-                    calibrator.set_baseline(raw_gaze.head_angles, eye_feats, w, h)
-                    gaze_estimator.set_neutral_posture(raw_gaze.head_angles.yaw, raw_gaze.head_angles.pitch, avg_ix, avg_iy)
-                    print(f"[AdaptiveEye Center Calibrated] Neutral center locked to ({avg_ix:.3f}, {avg_iy:.3f})")
+                    yaw = raw_gaze.head_angles.yaw if raw_gaze.head_angles else 0.0
+                    pitch = raw_gaze.head_angles.pitch if raw_gaze.head_angles else 0.0
+                    if raw_gaze.head_angles:
+                        calibrator.set_baseline(raw_gaze.head_angles, eye_feats, w, h)
+                    gaze_estimator.set_neutral_posture(yaw, pitch, avg_ix, avg_iy)
+                    mouse_controller._curr_x = float(screen_w // 2)
+                    mouse_controller._curr_y = float(screen_h // 2)
+                    if mouse_controller._is_win32_available and mouse_controller._user32:
+                        mouse_controller._user32.SetCursorPos(screen_w // 2, screen_h // 2)
+                    stabilizer.reset()
+                    is_center_calibrated = True
+                    print(f"\n[AdaptiveEye Center Calibrated] Neutral eye center locked to ({avg_ix:.3f}, {avg_iy:.3f}) | Cursor centered.\n")
+            elif key in (ord("m"), ord("M")):
+                curr_app = gaze_estimator.config.estimation_approach
+                new_app = "compound" if curr_app == "pure_iris" else "pure_iris"
+                gaze_estimator.config.estimation_approach = new_app
+                mode_lbl = "PURE IRIS (100% Eye Control)" if new_app == "pure_iris" else "COMPOUND (Iris + Head Assistance)"
+                print(f"\n[AdaptiveEye Mode Toggle] Gaze tracking mode: {mode_lbl}\n")
             elif key in (ord("s"), ord("S")):
                 eye_scroller.config.enable_edge_scrolling = not eye_scroller.config.enable_edge_scrolling
                 state_str = "ENABLED" if eye_scroller.config.enable_edge_scrolling else "DISABLED"

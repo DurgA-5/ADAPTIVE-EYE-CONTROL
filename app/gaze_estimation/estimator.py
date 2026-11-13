@@ -67,8 +67,8 @@ class AdaptiveIrisRangeTracker:
     def __init__(
         self,
         bounds: Optional[IrisRangeBounds] = None,
-        gain_x: float = 1.35,
-        gain_y: float = 1.65,
+        gain_x: float = 1.65,
+        gain_y: float = 1.95,
     ) -> None:
         self.bounds = bounds or IrisRangeBounds()
         self.gain_x: float = gain_x
@@ -85,7 +85,7 @@ class AdaptiveIrisRangeTracker:
     def gain(self, val: float) -> None:
         self._gain = val
         self.gain_x = val
-        self.gain_y = round(val * 1.22, 2)
+        self.gain_y = round(val * 1.18, 2)
 
     def set_neutral(self, iris_x: float, iris_y: float) -> None:
         """Calibrate user's resting forward gaze center."""
@@ -103,13 +103,13 @@ class AdaptiveIrisRangeTracker:
         disp_x = iris_x - self.neutral_iris_x
         disp_y = iris_y - self.neutral_iris_y
 
-        # Nominal physiological human ocular displacement limits:
-        # Horizontal: +/-0.055 for effortless lateral reach
-        # Upward: 0.038
-        # Downward: 0.022 (Physiological eyelid depression restricts downward iris travel to ~0.022)
-        half_span_x = 0.055
-        half_span_y_up = 0.038
-        half_span_y_down = 0.022  # Calibrated for effortless taskbar reach on laptop displays
+        # Highly sensitive physiological ocular limits for effortless full-screen reach:
+        # Horizontal: +/-0.035 for effortless lateral sweep across 100% of display
+        # Upward: 0.026 (effortless top border / title bar reach)
+        # Downward: 0.016 (effortless taskbar reach with natural eyelid depression)
+        half_span_x = 0.035
+        half_span_y_up = 0.026
+        half_span_y_down = 0.016
 
         # Horizontal mapping
         nx = 0.50 + (disp_x / half_span_x) * 0.50 * self.gain_x
@@ -121,8 +121,6 @@ class AdaptiveIrisRangeTracker:
         else:
             # Looking upward towards title bar / top of screen
             ny = 0.50 + (disp_y / half_span_y_up) * 0.50 * self.gain_y
-
-        return float(np.clip(nx, 0.0, 1.0)), float(np.clip(ny, 0.0, 1.0))
 
         return float(np.clip(nx, 0.0, 1.0)), float(np.clip(ny, 0.0, 1.0))
 
@@ -256,8 +254,8 @@ class GazeEstimator:
         head_delta_x = 0.0
         head_delta_y = 0.0
 
-        # Compound mode: Estimate head pose using solvePnP
-        if self.config.estimation_approach == "compound" and all_landmarks:
+        # Estimate head pose using solvePnP for telemetry & posture drift tracking
+        if all_landmarks:
             head_angles = self.head_pose_estimator.estimate(all_landmarks, w, h)
             if head_angles:
                 # Auto-initialize neutral posture on first head pose detection
@@ -271,7 +269,8 @@ class GazeEstimator:
                 head_delta_x = (rel_yaw / 15.0)
                 head_delta_y = (rel_pitch / 15.0)
 
-        # In compound mode, iris provides primary 100% full-screen targeting, with head pose providing natural assistance
+        # In pure_iris mode, iris displacement provides 100% full-screen targeting.
+        # In compound mode, iris provides primary targeting with subtle head pose assistance.
         if self.config.estimation_approach == "compound" and head_angles:
             raw_x = iris_norm_x + (self.config.head_pose_weight * head_delta_x)
             raw_y = iris_norm_y + (self.config.head_pose_weight * head_delta_y)

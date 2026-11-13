@@ -1,10 +1,10 @@
 # AdaptiveEye - Dynamic Adaptive Calibration & Drift Compensation Configuration
 adaptive_calibration:
   enable_drift_compensation: true       # Toggle dynamic posture & drift adaptation
-  head_drift_gain_x: 10.0              # Pixels compensation per degree of yaw shift
-  head_drift_gain_y: 8.5               # Pixels compensation per degree of pitch shift
+  head_drift_gain_x: 2.5              # Pixels compensation per degree of yaw shift (prevents head shifts from hijacking cursor)
+  head_drift_gain_y: 2.0               # Pixels compensation per degree of pitch shift
   enable_distance_scaling: true        # Dynamically scale sensitivity as user leans in/out
-  max_drift_offset_px: 160.0           # Strict safety limit on drift compensation
+  max_drift_offset_px: 120.0           # Strict safety limit on drift compensation
   drift_ema_smoothing: 0.15            # Low-pass smoothing factor for posture shifts
   baseline_auto_anchor: true           # Automatically anchor on first stable frontal gaze
   posture_alert_threshold_deg: 25.0    # Warn user if head posture has drifted excessively
