@@ -1,0 +1,10 @@
+# AdaptiveEye - Camera Configuration
+camera:
+  device_id: 0
+  width: 1280
+  height: 720
+  fps: 30
+  mirror: true
+  auto_exposure: true
+  warmup_frames: 10
+  buffer_size: 1

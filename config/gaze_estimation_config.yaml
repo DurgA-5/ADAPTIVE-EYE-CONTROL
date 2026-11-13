@@ -1,0 +1,10 @@
+# AdaptiveEye - Gaze Estimation Configuration
+gaze_estimation:
+  estimation_approach: "compound"    # "pure_iris" or "compound" (iris + head pose solvePnP)
+  iris_weight: 0.65                 # Weight for relative iris displacement in eye sockets
+  head_pose_weight: 0.35            # Weight for 3D head yaw/pitch compensation
+  sensitivity_x: 2.8                # Horizontal gaze dynamic range multiplier
+  sensitivity_y: 3.2                # Vertical gaze dynamic range multiplier (full top-to-bottom reach)
+  center_bias_x: 0.50               # Calibrated rest center point X
+  center_bias_y: 0.50               # Calibrated rest center point Y
+  min_tracking_confidence: 0.60     # Discards gaze if mesh confidence drops

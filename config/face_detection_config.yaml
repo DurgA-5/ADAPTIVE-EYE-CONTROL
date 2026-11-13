@@ -1,0 +1,7 @@
+# AdaptiveEye - Face Detection Configuration
+face_detection:
+  model_selection: 0              # 0: short-range (within 2m, laptop webcam), 1: full-range (up to 5m)
+  min_detection_confidence: 0.65  # Minimum score threshold for valid detection
+  min_face_size_pixels: 60        # Rejects tiny background artifacts
+  allow_multiple_faces: false     # Safety violation flag if multiple faces are present
+  max_num_faces: 5                # Upper limit for multi-face security scanning

@@ -1,0 +1,31 @@
+# AdaptiveEye - Master Configuration
+project:
+  name: "AdaptiveEye"
+  version: "1.0.0"
+  environment: "development"
+
+logging:
+  level: "INFO"
+  format: "[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s"
+  date_format: "%Y-%m-%d %H:%M:%S"
+  log_to_file: true
+  log_file: "adaptive_eye.log"
+
+safety:
+  require_authorization: true
+  min_face_confidence: 0.70
+  min_verification_similarity: 0.88
+  tracking_timeout_seconds: 1.5
+  max_unstable_frames: 10
+  pause_cursor_on_loss: true
+
+cursor:
+  stabilizer: "ema"  # options: "ema", "kalman"
+  ema_alpha: 0.25
+  speed_multiplier: 1.0
+  screen_margin_pixels: 5
+
+blink:
+  ear_threshold: 0.21
+  consecutive_frames_click: 3
+  click_cooldown_seconds: 0.8

@@ -1,0 +1,12 @@
+# AdaptiveEye - Screen Calibration Configuration
+calibration:
+  grid_points: 9                       # 9-point calibration (3x3 grid)
+  dwell_time_sec: 2.0                 # Total duration per target point
+  settle_time_sec: 0.6                # Initial saccade discard window
+  samples_per_point: 30               # Target valid gaze samples to record per point
+  polynomial_degree: 2                # 2 = quadratic polynomial mapping (1, x, y, x^2, y^2, xy)
+  regularization_alpha: 0.001         # Ridge regression L2 penalty to prevent edge overfit
+  margin_x: 0.10                      # Screen horizontal margin (10% from border)
+  margin_y: 0.10                      # Screen vertical margin (10% from border)
+  target_radius: 28                   # Outer fixation circle radius in pixels
+  calibration_file: "data/calibration/screen_calibration.json"

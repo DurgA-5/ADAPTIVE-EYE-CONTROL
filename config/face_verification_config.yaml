@@ -1,0 +1,22 @@
+# AdaptiveEye - Face Verification (ArcFace) Configuration
+face_verification:
+  model_path: "models/weights/w600k_r50.onnx"
+  input_size: [112, 112]
+  high_confidence_threshold: 0.65   # Entry threshold to become AUTHORIZED
+  release_threshold: 0.55           # Hysteresis floor (stays AUTHORIZED until dropping below this)
+  low_confidence_threshold: 0.45    # Sub-threshold boundary (below this = impostor rejection)
+  temporal_smoothing_frames: 5     # Rolling window for confidence stabilization
+  verify_every_n_frames: 4         # Cadence decoupling (keeps preview at 30 FPS)
+
+enrollment:
+  samples_required: 30
+  profile_dir: "data/enrollment"
+  min_sharpness_laplacian: 80.0    # Reject blurry frames
+  min_brightness: 40.0             # Reject underexposed frames
+  max_brightness: 220.0            # Reject overexposed frames
+  min_face_size_pixels: 100        # Reject small/distant faces
+  require_explicit_consent: true
+
+evaluation:
+  evaluation_dir: "data/evaluation"
+  threshold_step: 0.01

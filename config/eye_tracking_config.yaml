@@ -1,0 +1,8 @@
+# AdaptiveEye - Eye Landmark & Iris Tracking Configuration
+eye_tracking:
+  refine_landmarks: true             # Must be True to extract 478 landmarks (including irises)
+  max_num_faces: 1                   # Strictly track the single authorized locked face
+  min_detection_confidence: 0.65     # Minimum confidence to initialize mesh
+  min_tracking_confidence: 0.65      # Minimum confidence for temporal landmark tracking
+  ear_blink_threshold: 0.20          # Threshold below which eye is considered closed
+  smooth_landmarks: true             # Temporal landmark smoothing

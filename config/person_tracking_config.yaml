@@ -1,0 +1,8 @@
+# AdaptiveEye - Person Tracking & Identity Locking Configuration
+person_tracking:
+  min_iou_continuity: 0.35               # Minimum bounding-box spatial overlap across frames
+  max_centroid_distance_normalized: 0.25 # Maximum allowed centroid jump between consecutive frames
+  max_lost_frames_tolerance: 15          # Consecutive missing frames before lock is broken (~0.5s @ 30 FPS)
+  reverification_interval_frames: 45     # Periodic ArcFace heartbeat check (~1.5s @ 30 FPS)
+  require_reverification_on_reacquire: true
+  min_face_confidence_tracking: 0.60

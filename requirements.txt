@@ -1,0 +1,19 @@
+# Core Numerical and Computer Vision
+numpy>=1.23.5
+opencv-python>=4.8.0,<5.0.0
+mediapipe==0.10.14
+
+# Machine Learning and Inference
+onnxruntime>=1.16.0
+scipy>=1.10.0
+
+# System Automation & I/O
+pyautogui>=0.9.54
+pynput>=1.7.6
+
+# Configuration and Utilities
+pyyaml>=6.0.1
+pydantic>=2.0.0
+
+# Testing and Code Quality
+pytest>=8.0.0,<9.0.0
